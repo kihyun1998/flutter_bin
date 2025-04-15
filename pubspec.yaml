@@ -1,7 +1,7 @@
 name: flutter_bin
-description: "A new Flutter plugin project."
-version: 0.0.1
-homepage: "asd"
+description: "A Flutter plugin to retrieve metadata from binary files (executable files) on desktop platforms. Currently supports retrieving file version and other metadata on Windows."
+version: 1.0.0
+homepage: "https://github.com/kihyun1998/flutter_bin"
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
