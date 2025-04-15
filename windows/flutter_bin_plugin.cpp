@@ -72,8 +72,15 @@ void FlutterBinPlugin::HandleMethodCall(
       auto file_path_it = arguments->find(flutter::EncodableValue("filePath"));
       if (file_path_it != arguments->end()) {
         const std::string& file_path = std::get<std::string>(file_path_it->second);
-        flutter::EncodableMap metadata = GetBinaryFileMetadata(file_path);
-        result->Success(flutter::EncodableValue(metadata));
+        std::map<std::string, std::string> metadata_map = GetBinaryFileMetadata(file_path);
+        
+        // Convert std::map to flutter::EncodableMap
+        flutter::EncodableMap result_map;
+        for (const auto& pair : metadata_map) {
+          result_map[flutter::EncodableValue(pair.first)] = flutter::EncodableValue(pair.second);
+        }
+        
+        result->Success(flutter::EncodableValue(result_map));
       } else {
         result->Error("INVALID_ARGUMENT", "Argument 'filePath' not found");
       }
@@ -192,8 +199,8 @@ std::string GetVersionInfoString(const std::vector<BYTE>& version_info, const st
   return "";
 }
 
-flutter::EncodableMap FlutterBinPlugin::GetBinaryFileMetadata(const std::string& file_path) {
-  flutter::EncodableMap metadata;
+std::map<std::string, std::string> FlutterBinPlugin::GetBinaryFileMetadata(const std::string& file_path) {
+  std::map<std::string, std::string> metadata;
   
   // Convert from UTF-8 to wide string
   int size_needed = MultiByteToWideChar(CP_UTF8, 0, file_path.c_str(), -1, NULL, 0);
@@ -235,24 +242,15 @@ flutter::EncodableMap FlutterBinPlugin::GetBinaryFileMetadata(const std::string&
     // Format the version string
     std::ostringstream version_stream;
     version_stream << major << "." << minor << "." << build << "." << revision;
-    metadata[flutter::EncodableValue("version")] = flutter::EncodableValue(version_stream.str());
+    metadata["version"] = version_stream.str();
   }
 
   // Get string values from version info
-  metadata[flutter::EncodableValue("productName")] = 
-      flutter::EncodableValue(GetVersionInfoString(version_info, L"ProductName")); 
-  
-  metadata[flutter::EncodableValue("fileDescription")] = 
-      flutter::EncodableValue(GetVersionInfoString(version_info, L"FileDescription"));
-  
-  metadata[flutter::EncodableValue("legalCopyright")] = 
-      flutter::EncodableValue(GetVersionInfoString(version_info, L"LegalCopyright"));
-  
-  metadata[flutter::EncodableValue("originalFilename")] = 
-      flutter::EncodableValue(GetVersionInfoString(version_info, L"OriginalFilename"));
-  
-  metadata[flutter::EncodableValue("companyName")] = 
-      flutter::EncodableValue(GetVersionInfoString(version_info, L"CompanyName"));
+  metadata["productName"] = GetVersionInfoString(version_info, L"ProductName");
+  metadata["fileDescription"] = GetVersionInfoString(version_info, L"FileDescription");
+  metadata["legalCopyright"] = GetVersionInfoString(version_info, L"LegalCopyright");
+  metadata["originalFilename"] = GetVersionInfoString(version_info, L"OriginalFilename");
+  metadata["companyName"] = GetVersionInfoString(version_info, L"CompanyName");
 
   return metadata;
 }

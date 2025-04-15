@@ -3,6 +3,7 @@
 
 #include <flutter/method_channel.h>
 #include <flutter/plugin_registrar_windows.h>
+#include <flutter/standard_method_codec.h>
 
 #include <memory>
 #include <string>
@@ -30,7 +31,9 @@ class FlutterBinPlugin : public flutter::Plugin {
  private:
   // Methods to handle specific platform calls
   std::string GetBinaryFileVersion(const std::string& file_path);
-  flutter::EncodableMap GetBinaryFileMetadata(const std::string& file_path);
+  
+  // Get comprehensive metadata about a binary file
+  std::map<std::string, std::string> GetBinaryFileMetadata(const std::string& file_path);
 };
 
 }  // namespace flutter_bin
