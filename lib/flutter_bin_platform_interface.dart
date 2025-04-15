@@ -1,6 +1,7 @@
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import 'flutter_bin_method_channel.dart';
+import 'models/binary_file_metadata.dart';
 
 abstract class FlutterBinPlatform extends PlatformInterface {
   /// Constructs a FlutterBinPlatform.
@@ -23,8 +24,21 @@ abstract class FlutterBinPlatform extends PlatformInterface {
     _instance = instance;
   }
 
+  /// Gets the version of a binary file.
+  ///
+  /// [filePath] is the absolute path to the binary file.
+  /// Returns the version string of the file or null if not available.
   Future<String?> getBinaryFileVersion(String filePath) {
     throw UnimplementedError(
         'getBinaryFileVersion() has not been implemented.');
+  }
+
+  /// Gets comprehensive metadata of a binary file.
+  ///
+  /// [filePath] is the absolute path to the binary file.
+  /// Returns a [BinaryFileMetadata] object containing available metadata.
+  Future<BinaryFileMetadata> getBinaryFileMetadata(String filePath) {
+    throw UnimplementedError(
+        'getBinaryFileMetadata() has not been implemented.');
   }
 }

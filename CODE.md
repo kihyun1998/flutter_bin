@@ -11,6 +11,8 @@ flutter_bin/
     └── test/
     │   └── widget_test.dart
 ├── lib/
+    ├── models/
+    │   └── binary_file_metadata.dart
     ├── flutter_bin.dart
     ├── flutter_bin_method_channel.dart
     └── flutter_bin_platform_interface.dart
@@ -39,30 +41,25 @@ flutter_bin/
 // For more information about Flutter integration tests, please see
 // https://flutter.dev/to/integration-testing
 
-
+import 'package:flutter_bin/flutter_bin.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-
-import 'package:flutter_bin/flutter_bin.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('getPlatformVersion test', (WidgetTester tester) async {
     final FlutterBin plugin = FlutterBin();
-    final String? version = await plugin.getPlatformVersion();
-    // The version string depends on the host platform running the test, so
-    // just assert that some non-empty string is returned.
-    expect(version?.isNotEmpty, true);
   });
 }
 
 ```
 ## example/lib/main.dart
 ```dart
-import 'package:flutter/material.dart';
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bin/flutter_bin.dart';
 
@@ -78,34 +75,71 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  String _platformVersion = 'Unknown';
+  String _fileVersion = 'No file selected';
   final _flutterBinPlugin = FlutterBin();
+  final _filePathController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    initPlatformState();
   }
 
-  // Platform messages are asynchronous, so we initialize in an async method.
-  Future<void> initPlatformState() async {
-    String platformVersion;
-    // Platform messages may fail, so we use a try/catch PlatformException.
-    // We also handle the message potentially returning null.
-    try {
-      platformVersion =
-          await _flutterBinPlugin.getPlatformVersion() ?? 'Unknown platform version';
-    } on PlatformException {
-      platformVersion = 'Failed to get platform version.';
+  @override
+  void dispose() {
+    _filePathController.dispose();
+    super.dispose();
+  }
+
+  // Method 1: Get version from manually entered file path
+  Future<void> _getFileVersionFromPath() async {
+    String fileVersion;
+    final filePath = _filePathController.text.trim();
+
+    if (filePath.isEmpty) {
+      fileVersion = 'Please enter a file path';
+    } else {
+      try {
+        final version = await _flutterBinPlugin.getBinaryFileVersion(filePath);
+        fileVersion = version ?? 'No version information available';
+      } on PlatformException catch (e) {
+        fileVersion = 'Error: ${e.message}';
+      }
     }
 
-    // If the widget was removed from the tree while the asynchronous platform
-    // message was in flight, we want to discard the reply rather than calling
-    // setState to update our non-existent appearance.
     if (!mounted) return;
 
     setState(() {
-      _platformVersion = platformVersion;
+      _fileVersion = fileVersion;
+    });
+  }
+
+  // Method 2: Get version using FilePicker
+  Future<void> _pickFileAndGetVersion() async {
+    String fileVersion;
+
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        allowMultiple: false,
+      );
+
+      if (result != null && result.files.single.path != null) {
+        final filePath = result.files.single.path!;
+        _filePathController.text = filePath; // Update the text field
+
+        final version = await _flutterBinPlugin.getBinaryFileVersion(filePath);
+        fileVersion = version ?? 'No version information available';
+      } else {
+        fileVersion = 'File selection canceled';
+      }
+    } on PlatformException catch (e) {
+      fileVersion = 'Error: ${e.message}';
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _fileVersion = fileVersion;
     });
   }
 
@@ -114,10 +148,44 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       home: Scaffold(
         appBar: AppBar(
-          title: const Text('Plugin example app'),
+          title: const Text('Binary File Version Plugin'),
         ),
-        body: Center(
-          child: Text('Running on: $_platformVersion\n'),
+        body: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Method 1: Manual file path input
+              const Text('Method 1: Enter file path manually',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              TextField(
+                controller: _filePathController,
+                decoration: const InputDecoration(
+                  hintText: 'C:\\path\\to\\file.exe',
+                ),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: _getFileVersionFromPath,
+                child: const Text('Get Version from Path'),
+              ),
+              const SizedBox(height: 20),
+
+              // Method 2: FilePicker
+              const Text('Method 2: Use FilePicker',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              ElevatedButton(
+                onPressed: _pickFileAndGetVersion,
+                child: const Text('Select File Using FilePicker'),
+              ),
+              const SizedBox(height: 20),
+
+              // Result display
+              const Text('Result:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              Text('File version: $_fileVersion'),
+            ],
+          ),
         ),
       ),
     );
@@ -158,18 +226,26 @@ void main() {
 ```
 ## lib/flutter_bin.dart
 ```dart
-// You have generated a new plugin project without specifying the `--platforms`
-// flag. A plugin project with no platform support was generated. To add a
-// platform, run `flutter create -t plugin --platforms <platforms> .` under the
-// same directory. You can also find a detailed instruction on how to add
-// platforms in the `pubspec.yaml` at
-// https://flutter.dev/to/pubspec-plugin-platforms.
-
 import 'flutter_bin_platform_interface.dart';
+import 'models/binary_file_metadata.dart';
 
 class FlutterBin {
-  Future<String?> getPlatformVersion() {
-    return FlutterBinPlatform.instance.getPlatformVersion();
+  /// Gets the version of a binary file.
+  ///
+  /// [filePath] is the absolute path to the binary file.
+  /// Returns the version string of the file (e.g. '1.2.3.4').
+  /// Returns null if the file doesn't exist or version information is not available.
+  Future<String?> getBinaryFileVersion(String filePath) {
+    return FlutterBinPlatform.instance.getBinaryFileVersion(filePath);
+  }
+
+  /// Gets comprehensive metadata of a binary file.
+  ///
+  /// [filePath] is the absolute path to the binary file.
+  /// Returns a [BinaryFileMetadata] object containing available metadata.
+  /// Fields may be null if the corresponding information is not available.
+  Future<BinaryFileMetadata> getBinaryFileMetadata(String filePath) {
+    return FlutterBinPlatform.instance.getBinaryFileMetadata(filePath);
   }
 }
 
@@ -180,6 +256,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'flutter_bin_platform_interface.dart';
+import 'models/binary_file_metadata.dart';
 
 /// An implementation of [FlutterBinPlatform] that uses method channels.
 class MethodChannelFlutterBin extends FlutterBinPlatform {
@@ -188,9 +265,23 @@ class MethodChannelFlutterBin extends FlutterBinPlatform {
   final methodChannel = const MethodChannel('flutter_bin');
 
   @override
-  Future<String?> getPlatformVersion() async {
-    final version = await methodChannel.invokeMethod<String>('getPlatformVersion');
+  Future<String?> getBinaryFileVersion(String filePath) async {
+    final version = await methodChannel
+        .invokeMethod<String?>('getBinaryFileVersion', {'filePath': filePath});
     return version;
+  }
+
+  @override
+  Future<BinaryFileMetadata> getBinaryFileMetadata(String filePath) async {
+    final Map<String, dynamic>? result = await methodChannel
+        .invokeMapMethod<String, dynamic>(
+            'getBinaryFileMetadata', {'filePath': filePath});
+
+    if (result == null) {
+      return BinaryFileMetadata();
+    }
+
+    return BinaryFileMetadata.fromJson(result);
   }
 }
 
@@ -200,6 +291,7 @@ class MethodChannelFlutterBin extends FlutterBinPlatform {
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import 'flutter_bin_method_channel.dart';
+import 'models/binary_file_metadata.dart';
 
 abstract class FlutterBinPlatform extends PlatformInterface {
   /// Constructs a FlutterBinPlatform.
@@ -222,17 +314,80 @@ abstract class FlutterBinPlatform extends PlatformInterface {
     _instance = instance;
   }
 
-  Future<String?> getPlatformVersion() {
-    throw UnimplementedError('platformVersion() has not been implemented.');
+  /// Gets the version of a binary file.
+  ///
+  /// [filePath] is the absolute path to the binary file.
+  /// Returns the version string of the file or null if not available.
+  Future<String?> getBinaryFileVersion(String filePath) {
+    throw UnimplementedError(
+        'getBinaryFileVersion() has not been implemented.');
   }
+
+  /// Gets comprehensive metadata of a binary file.
+  ///
+  /// [filePath] is the absolute path to the binary file.
+  /// Returns a [BinaryFileMetadata] object containing available metadata.
+  Future<BinaryFileMetadata> getBinaryFileMetadata(String filePath) {
+    throw UnimplementedError(
+        'getBinaryFileMetadata() has not been implemented.');
+  }
+}
+
+```
+## lib/models/binary_file_metadata.dart
+```dart
+enum BinaryFileMetadataJsonKey {
+  version,
+  productName,
+  fileDescription,
+  legalCopyright,
+  originalFilename,
+  companyName,
+  ;
+
+  String get key {
+    return toString().split('.').last;
+  }
+}
+
+/// Represents file metadata information
+class BinaryFileMetadata {
+  final String version;
+  final String productName;
+  final String fileDescription;
+  final String legalCopyright;
+  final String originalFilename;
+  final String companyName;
+
+  factory BinaryFileMetadata.fromJson(Map<String, dynamic> json) {
+    return BinaryFileMetadata(
+      version: json[BinaryFileMetadataJsonKey.version.key] ?? '',
+      productName: json[BinaryFileMetadataJsonKey.productName.key] ?? '',
+      fileDescription:
+          json[BinaryFileMetadataJsonKey.fileDescription.key] ?? '',
+      legalCopyright: json[BinaryFileMetadataJsonKey.legalCopyright.key] ?? '',
+      originalFilename:
+          json[BinaryFileMetadataJsonKey.originalFilename.key] ?? '',
+      companyName: json[BinaryFileMetadataJsonKey.companyName.key] ?? '',
+    );
+  }
+
+  BinaryFileMetadata({
+    this.version = '',
+    this.productName = '',
+    this.fileDescription = '',
+    this.legalCopyright = '',
+    this.originalFilename = '',
+    this.companyName = '',
+  });
 }
 
 ```
 ## test/flutter_bin_method_channel_test.dart
 ```dart
 import 'package:flutter/services.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_bin/flutter_bin_method_channel.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -241,7 +396,8 @@ void main() {
   const MethodChannel channel = MethodChannel('flutter_bin');
 
   setUp(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
       channel,
       (MethodCall methodCall) async {
         return '42';
@@ -250,29 +406,36 @@ void main() {
   });
 
   tearDown(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, null);
-  });
-
-  test('getPlatformVersion', () async {
-    expect(await platform.getPlatformVersion(), '42');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, null);
   });
 }
 
 ```
 ## test/flutter_bin_test.dart
 ```dart
-import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_bin/flutter_bin.dart';
-import 'package:flutter_bin/flutter_bin_platform_interface.dart';
 import 'package:flutter_bin/flutter_bin_method_channel.dart';
+import 'package:flutter_bin/flutter_bin_platform_interface.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 class MockFlutterBinPlatform
     with MockPlatformInterfaceMixin
     implements FlutterBinPlatform {
-
   @override
   Future<String?> getPlatformVersion() => Future.value('42');
+
+  @override
+  Future<String?> getBinaryFileVersion(String filePath) {
+    // TODO: implement getBinaryFileVersion
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<String?> pickFileAndGetVersion() {
+    // TODO: implement pickFileAndGetVersion
+    throw UnimplementedError();
+  }
 }
 
 void main() {
@@ -280,14 +443,6 @@ void main() {
 
   test('$MethodChannelFlutterBin is the default instance', () {
     expect(initialPlatform, isInstanceOf<MethodChannelFlutterBin>());
-  });
-
-  test('getPlatformVersion', () async {
-    FlutterBin flutterBinPlugin = FlutterBin();
-    MockFlutterBinPlatform fakePlatform = MockFlutterBinPlatform();
-    FlutterBinPlatform.instance = fakePlatform;
-
-    expect(await flutterBinPlugin.getPlatformVersion(), '42');
   });
 }
 
@@ -342,7 +497,9 @@ target_compile_definitions(${PLUGIN_NAME} PRIVATE FLUTTER_PLUGIN_IMPL)
 # dependencies here.
 target_include_directories(${PLUGIN_NAME} INTERFACE
   "${CMAKE_CURRENT_SOURCE_DIR}/include")
-target_link_libraries(${PLUGIN_NAME} PRIVATE flutter flutter_wrapper_plugin)
+  
+# Link required libraries
+target_link_libraries(${PLUGIN_NAME} PRIVATE flutter flutter_wrapper_plugin Version Ole32 Shell32)
 
 # List of absolute paths to libraries that should be bundled with the plugin.
 # This list could contain prebuilt libraries, or libraries created by an
@@ -351,50 +508,6 @@ set(flutter_bin_bundled_libraries
   ""
   PARENT_SCOPE
 )
-
-# === Tests ===
-# These unit tests can be run from a terminal after building the example, or
-# from Visual Studio after opening the generated solution file.
-
-# Only enable test builds when building the example (which sets this variable)
-# so that plugin clients aren't building the tests.
-if (${include_${PROJECT_NAME}_tests})
-set(TEST_RUNNER "${PROJECT_NAME}_test")
-enable_testing()
-
-# Add the Google Test dependency.
-include(FetchContent)
-FetchContent_Declare(
-  googletest
-  URL https://github.com/google/googletest/archive/release-1.11.0.zip
-)
-# Prevent overriding the parent project's compiler/linker settings
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-# Disable install commands for gtest so it doesn't end up in the bundle.
-set(INSTALL_GTEST OFF CACHE BOOL "Disable installation of googletest" FORCE)
-FetchContent_MakeAvailable(googletest)
-
-# The plugin's C API is not very useful for unit testing, so build the sources
-# directly into the test binary rather than using the DLL.
-add_executable(${TEST_RUNNER}
-  test/flutter_bin_plugin_test.cpp
-  ${PLUGIN_SOURCES}
-)
-apply_standard_settings(${TEST_RUNNER})
-target_include_directories(${TEST_RUNNER} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(${TEST_RUNNER} PRIVATE flutter_wrapper_plugin)
-target_link_libraries(${TEST_RUNNER} PRIVATE gtest_main gmock)
-# flutter_wrapper_plugin has link dependencies on the Flutter DLL.
-add_custom_command(TARGET ${TEST_RUNNER} POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different
-  "${FLUTTER_LIBRARY}" $<TARGET_FILE_DIR:${TEST_RUNNER}>
-)
-
-# Enable automatic test discovery.
-include(GoogleTest)
-gtest_discover_tests(${TEST_RUNNER})
-endif()
-
 ```
 ## windows/flutter_bin_plugin.cpp
 ```cpp
@@ -403,8 +516,8 @@ endif()
 // This must be included before many other Windows headers.
 #include <windows.h>
 
-// For getPlatformVersion; remove unless needed for your plugin implementation.
-#include <VersionHelpers.h>
+// For version info
+#include <winver.h>
 
 #include <flutter/method_channel.h>
 #include <flutter/plugin_registrar_windows.h>
@@ -412,6 +525,9 @@ endif()
 
 #include <memory>
 #include <sstream>
+
+// Need to link with Version.lib
+#pragma comment(lib, "Version.lib")
 
 namespace flutter_bin {
 
@@ -440,24 +556,79 @@ FlutterBinPlugin::~FlutterBinPlugin() {}
 void FlutterBinPlugin::HandleMethodCall(
     const flutter::MethodCall<flutter::EncodableValue> &method_call,
     std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
-  if (method_call.method_name().compare("getPlatformVersion") == 0) {
-    std::ostringstream version_stream;
-    version_stream << "Windows ";
-    if (IsWindows10OrGreater()) {
-      version_stream << "10+";
-    } else if (IsWindows8OrGreater()) {
-      version_stream << "8";
-    } else if (IsWindows7OrGreater()) {
-      version_stream << "7";
+  if (method_call.method_name().compare("getBinaryFileVersion") == 0) {
+    const auto* arguments = std::get_if<flutter::EncodableMap>(method_call.arguments());
+    
+    if (arguments) {
+      auto file_path_it = arguments->find(flutter::EncodableValue("filePath"));
+      if (file_path_it != arguments->end()) {
+        const std::string& file_path = std::get<std::string>(file_path_it->second);
+        std::string version = GetBinaryFileVersion(file_path);
+        if (!version.empty()) {
+          result->Success(flutter::EncodableValue(version));
+        } else {
+          result->Success(nullptr);
+        }
+      } else {
+        result->Error("INVALID_ARGUMENT", "Argument 'filePath' not found");
+      }
+    } else {
+      result->Error("INVALID_ARGUMENT", "Arguments must be a map");
     }
-    result->Success(flutter::EncodableValue(version_stream.str()));
   } else {
     result->NotImplemented();
   }
 }
 
-}  // namespace flutter_bin
+std::string FlutterBinPlugin::GetBinaryFileVersion(const std::string& file_path) {
+  // Convert from UTF-8 to wide string
+  int size_needed = MultiByteToWideChar(CP_UTF8, 0, file_path.c_str(), -1, NULL, 0);
+  std::wstring wide_path(size_needed, 0);
+  MultiByteToWideChar(CP_UTF8, 0, file_path.c_str(), -1, &wide_path[0], size_needed);
 
+  // Check if file exists
+  DWORD file_attributes = GetFileAttributesW(wide_path.c_str());
+  if (file_attributes == INVALID_FILE_ATTRIBUTES) {
+    // File doesn't exist or is inaccessible
+    return "";
+  }
+
+  // Get the size of the version info
+  DWORD dummy;
+  DWORD version_info_size = GetFileVersionInfoSizeW(wide_path.c_str(), &dummy);
+  if (version_info_size == 0) {
+    // Could not get version info size
+    return "";
+  }
+
+  // Allocate memory for the version info
+  std::vector<BYTE> version_info(version_info_size);
+  if (!GetFileVersionInfoW(wide_path.c_str(), 0, version_info_size, version_info.data())) {
+    // Could not get version info
+    return "";
+  }
+
+  // Get the fixed file info
+  VS_FIXEDFILEINFO* fixed_file_info = nullptr;
+  UINT len = 0;
+  if (!VerQueryValueW(version_info.data(), L"\\", (LPVOID*)&fixed_file_info, &len)) {
+    // Could not get fixed file info
+    return "";
+  }
+
+  // Extract the version
+  DWORD major = HIWORD(fixed_file_info->dwFileVersionMS);
+  DWORD minor = LOWORD(fixed_file_info->dwFileVersionMS);
+  DWORD build = HIWORD(fixed_file_info->dwFileVersionLS);
+  DWORD revision = LOWORD(fixed_file_info->dwFileVersionLS);
+
+  // Format the version string
+  std::ostringstream version_stream;
+  version_stream << major << "." << minor << "." << build << "." << revision;
+  return version_stream.str();
+}
+
+}  // namespace flutter_bin
 ```
 ## windows/flutter_bin_plugin.h
 ```h
@@ -468,6 +639,7 @@ void FlutterBinPlugin::HandleMethodCall(
 #include <flutter/plugin_registrar_windows.h>
 
 #include <memory>
+#include <string>
 
 namespace flutter_bin {
 
@@ -487,12 +659,15 @@ class FlutterBinPlugin : public flutter::Plugin {
   void HandleMethodCall(
       const flutter::MethodCall<flutter::EncodableValue> &method_call,
       std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
+      
+ private:
+  // Methods to handle specific platform calls
+  std::string GetBinaryFileVersion(const std::string& file_path);
 };
 
 }  // namespace flutter_bin
 
 #endif  // FLUTTER_PLUGIN_FLUTTER_BIN_PLUGIN_H_
-
 ```
 ## windows/flutter_bin_plugin_c_api.cpp
 ```cpp

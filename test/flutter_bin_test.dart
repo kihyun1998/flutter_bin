@@ -1,5 +1,6 @@
 import 'package:flutter_bin/flutter_bin_method_channel.dart';
 import 'package:flutter_bin/flutter_bin_platform_interface.dart';
+import 'package:flutter_bin/models/binary_file_metadata.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
@@ -18,6 +19,12 @@ class MockFlutterBinPlatform
   @override
   Future<String?> pickFileAndGetVersion() {
     // TODO: implement pickFileAndGetVersion
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<BinaryFileMetadata> getBinaryFileMetadata(String filePath) {
+    // TODO: implement getBinaryFileMetadata
     throw UnimplementedError();
   }
 }

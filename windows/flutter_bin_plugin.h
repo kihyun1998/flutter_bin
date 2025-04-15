@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace flutter_bin {
 
@@ -29,6 +30,7 @@ class FlutterBinPlugin : public flutter::Plugin {
  private:
   // Methods to handle specific platform calls
   std::string GetBinaryFileVersion(const std::string& file_path);
+  flutter::EncodableMap GetBinaryFileMetadata(const std::string& file_path);
 };
 
 }  // namespace flutter_bin
