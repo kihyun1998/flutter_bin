@@ -1,0 +1,586 @@
+# flutter_bin
+## Project Structure
+
+```
+flutter_bin/
+├── example/
+    ├── integration_test/
+    │   └── plugin_integration_test.dart
+    ├── lib/
+    │   └── main.dart
+    └── test/
+    │   └── widget_test.dart
+├── lib/
+    ├── flutter_bin.dart
+    ├── flutter_bin_method_channel.dart
+    └── flutter_bin_platform_interface.dart
+├── test/
+    ├── flutter_bin_method_channel_test.dart
+    └── flutter_bin_test.dart
+└── windows/
+    ├── include/
+        └── flutter_bin/
+        │   └── flutter_bin_plugin_c_api.h
+    ├── test/
+        └── flutter_bin_plugin_test.cpp
+    ├── CMakeLists.txt
+    ├── flutter_bin_plugin.cpp
+    ├── flutter_bin_plugin.h
+    └── flutter_bin_plugin_c_api.cpp
+```
+
+## example/integration_test/plugin_integration_test.dart
+```dart
+// This is a basic Flutter integration test.
+//
+// Since integration tests run in a full Flutter application, they can interact
+// with the host side of a plugin implementation, unlike Dart unit tests.
+//
+// For more information about Flutter integration tests, please see
+// https://flutter.dev/to/integration-testing
+
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:integration_test/integration_test.dart';
+
+import 'package:flutter_bin/flutter_bin.dart';
+
+void main() {
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('getPlatformVersion test', (WidgetTester tester) async {
+    final FlutterBin plugin = FlutterBin();
+    final String? version = await plugin.getPlatformVersion();
+    // The version string depends on the host platform running the test, so
+    // just assert that some non-empty string is returned.
+    expect(version?.isNotEmpty, true);
+  });
+}
+
+```
+## example/lib/main.dart
+```dart
+import 'package:flutter/material.dart';
+import 'dart:async';
+
+import 'package:flutter/services.dart';
+import 'package:flutter_bin/flutter_bin.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  String _platformVersion = 'Unknown';
+  final _flutterBinPlugin = FlutterBin();
+
+  @override
+  void initState() {
+    super.initState();
+    initPlatformState();
+  }
+
+  // Platform messages are asynchronous, so we initialize in an async method.
+  Future<void> initPlatformState() async {
+    String platformVersion;
+    // Platform messages may fail, so we use a try/catch PlatformException.
+    // We also handle the message potentially returning null.
+    try {
+      platformVersion =
+          await _flutterBinPlugin.getPlatformVersion() ?? 'Unknown platform version';
+    } on PlatformException {
+      platformVersion = 'Failed to get platform version.';
+    }
+
+    // If the widget was removed from the tree while the asynchronous platform
+    // message was in flight, we want to discard the reply rather than calling
+    // setState to update our non-existent appearance.
+    if (!mounted) return;
+
+    setState(() {
+      _platformVersion = platformVersion;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        appBar: AppBar(
+          title: const Text('Plugin example app'),
+        ),
+        body: Center(
+          child: Text('Running on: $_platformVersion\n'),
+        ),
+      ),
+    );
+  }
+}
+
+```
+## example/test/widget_test.dart
+```dart
+// This is a basic Flutter widget test.
+//
+// To perform an interaction with a widget in your test, use the WidgetTester
+// utility in the flutter_test package. For example, you can send tap and scroll
+// gestures. You can also use WidgetTester to find child widgets in the widget
+// tree, read text, and verify that the values of widget properties are correct.
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:flutter_bin_example/main.dart';
+
+void main() {
+  testWidgets('Verify Platform version', (WidgetTester tester) async {
+    // Build our app and trigger a frame.
+    await tester.pumpWidget(const MyApp());
+
+    // Verify that platform version is retrieved.
+    expect(
+      find.byWidgetPredicate(
+        (Widget widget) => widget is Text &&
+                           widget.data!.startsWith('Running on:'),
+      ),
+      findsOneWidget,
+    );
+  });
+}
+
+```
+## lib/flutter_bin.dart
+```dart
+// You have generated a new plugin project without specifying the `--platforms`
+// flag. A plugin project with no platform support was generated. To add a
+// platform, run `flutter create -t plugin --platforms <platforms> .` under the
+// same directory. You can also find a detailed instruction on how to add
+// platforms in the `pubspec.yaml` at
+// https://flutter.dev/to/pubspec-plugin-platforms.
+
+import 'flutter_bin_platform_interface.dart';
+
+class FlutterBin {
+  Future<String?> getPlatformVersion() {
+    return FlutterBinPlatform.instance.getPlatformVersion();
+  }
+}
+
+```
+## lib/flutter_bin_method_channel.dart
+```dart
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+
+import 'flutter_bin_platform_interface.dart';
+
+/// An implementation of [FlutterBinPlatform] that uses method channels.
+class MethodChannelFlutterBin extends FlutterBinPlatform {
+  /// The method channel used to interact with the native platform.
+  @visibleForTesting
+  final methodChannel = const MethodChannel('flutter_bin');
+
+  @override
+  Future<String?> getPlatformVersion() async {
+    final version = await methodChannel.invokeMethod<String>('getPlatformVersion');
+    return version;
+  }
+}
+
+```
+## lib/flutter_bin_platform_interface.dart
+```dart
+import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+
+import 'flutter_bin_method_channel.dart';
+
+abstract class FlutterBinPlatform extends PlatformInterface {
+  /// Constructs a FlutterBinPlatform.
+  FlutterBinPlatform() : super(token: _token);
+
+  static final Object _token = Object();
+
+  static FlutterBinPlatform _instance = MethodChannelFlutterBin();
+
+  /// The default instance of [FlutterBinPlatform] to use.
+  ///
+  /// Defaults to [MethodChannelFlutterBin].
+  static FlutterBinPlatform get instance => _instance;
+
+  /// Platform-specific implementations should set this with their own
+  /// platform-specific class that extends [FlutterBinPlatform] when
+  /// they register themselves.
+  static set instance(FlutterBinPlatform instance) {
+    PlatformInterface.verifyToken(instance, _token);
+    _instance = instance;
+  }
+
+  Future<String?> getPlatformVersion() {
+    throw UnimplementedError('platformVersion() has not been implemented.');
+  }
+}
+
+```
+## test/flutter_bin_method_channel_test.dart
+```dart
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_bin/flutter_bin_method_channel.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  MethodChannelFlutterBin platform = MethodChannelFlutterBin();
+  const MethodChannel channel = MethodChannel('flutter_bin');
+
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      channel,
+      (MethodCall methodCall) async {
+        return '42';
+      },
+    );
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, null);
+  });
+
+  test('getPlatformVersion', () async {
+    expect(await platform.getPlatformVersion(), '42');
+  });
+}
+
+```
+## test/flutter_bin_test.dart
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_bin/flutter_bin.dart';
+import 'package:flutter_bin/flutter_bin_platform_interface.dart';
+import 'package:flutter_bin/flutter_bin_method_channel.dart';
+import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+
+class MockFlutterBinPlatform
+    with MockPlatformInterfaceMixin
+    implements FlutterBinPlatform {
+
+  @override
+  Future<String?> getPlatformVersion() => Future.value('42');
+}
+
+void main() {
+  final FlutterBinPlatform initialPlatform = FlutterBinPlatform.instance;
+
+  test('$MethodChannelFlutterBin is the default instance', () {
+    expect(initialPlatform, isInstanceOf<MethodChannelFlutterBin>());
+  });
+
+  test('getPlatformVersion', () async {
+    FlutterBin flutterBinPlugin = FlutterBin();
+    MockFlutterBinPlatform fakePlatform = MockFlutterBinPlatform();
+    FlutterBinPlatform.instance = fakePlatform;
+
+    expect(await flutterBinPlugin.getPlatformVersion(), '42');
+  });
+}
+
+```
+## windows/CMakeLists.txt
+```txt
+# The Flutter tooling requires that developers have a version of Visual Studio
+# installed that includes CMake 3.14 or later. You should not increase this
+# version, as doing so will cause the plugin to fail to compile for some
+# customers of the plugin.
+cmake_minimum_required(VERSION 3.14)
+
+# Project-level configuration.
+set(PROJECT_NAME "flutter_bin")
+project(${PROJECT_NAME} LANGUAGES CXX)
+
+# Explicitly opt in to modern CMake behaviors to avoid warnings with recent
+# versions of CMake.
+cmake_policy(VERSION 3.14...3.25)
+
+# This value is used when generating builds using this plugin, so it must
+# not be changed
+set(PLUGIN_NAME "flutter_bin_plugin")
+
+# Any new source files that you add to the plugin should be added here.
+list(APPEND PLUGIN_SOURCES
+  "flutter_bin_plugin.cpp"
+  "flutter_bin_plugin.h"
+)
+
+# Define the plugin library target. Its name must not be changed (see comment
+# on PLUGIN_NAME above).
+add_library(${PLUGIN_NAME} SHARED
+  "include/flutter_bin/flutter_bin_plugin_c_api.h"
+  "flutter_bin_plugin_c_api.cpp"
+  ${PLUGIN_SOURCES}
+)
+
+# Apply a standard set of build settings that are configured in the
+# application-level CMakeLists.txt. This can be removed for plugins that want
+# full control over build settings.
+apply_standard_settings(${PLUGIN_NAME})
+
+# Symbols are hidden by default to reduce the chance of accidental conflicts
+# between plugins. This should not be removed; any symbols that should be
+# exported should be explicitly exported with the FLUTTER_PLUGIN_EXPORT macro.
+set_target_properties(${PLUGIN_NAME} PROPERTIES
+  CXX_VISIBILITY_PRESET hidden)
+target_compile_definitions(${PLUGIN_NAME} PRIVATE FLUTTER_PLUGIN_IMPL)
+
+# Source include directories and library dependencies. Add any plugin-specific
+# dependencies here.
+target_include_directories(${PLUGIN_NAME} INTERFACE
+  "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_link_libraries(${PLUGIN_NAME} PRIVATE flutter flutter_wrapper_plugin)
+
+# List of absolute paths to libraries that should be bundled with the plugin.
+# This list could contain prebuilt libraries, or libraries created by an
+# external build triggered from this build file.
+set(flutter_bin_bundled_libraries
+  ""
+  PARENT_SCOPE
+)
+
+# === Tests ===
+# These unit tests can be run from a terminal after building the example, or
+# from Visual Studio after opening the generated solution file.
+
+# Only enable test builds when building the example (which sets this variable)
+# so that plugin clients aren't building the tests.
+if (${include_${PROJECT_NAME}_tests})
+set(TEST_RUNNER "${PROJECT_NAME}_test")
+enable_testing()
+
+# Add the Google Test dependency.
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/release-1.11.0.zip
+)
+# Prevent overriding the parent project's compiler/linker settings
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+# Disable install commands for gtest so it doesn't end up in the bundle.
+set(INSTALL_GTEST OFF CACHE BOOL "Disable installation of googletest" FORCE)
+FetchContent_MakeAvailable(googletest)
+
+# The plugin's C API is not very useful for unit testing, so build the sources
+# directly into the test binary rather than using the DLL.
+add_executable(${TEST_RUNNER}
+  test/flutter_bin_plugin_test.cpp
+  ${PLUGIN_SOURCES}
+)
+apply_standard_settings(${TEST_RUNNER})
+target_include_directories(${TEST_RUNNER} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(${TEST_RUNNER} PRIVATE flutter_wrapper_plugin)
+target_link_libraries(${TEST_RUNNER} PRIVATE gtest_main gmock)
+# flutter_wrapper_plugin has link dependencies on the Flutter DLL.
+add_custom_command(TARGET ${TEST_RUNNER} POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+  "${FLUTTER_LIBRARY}" $<TARGET_FILE_DIR:${TEST_RUNNER}>
+)
+
+# Enable automatic test discovery.
+include(GoogleTest)
+gtest_discover_tests(${TEST_RUNNER})
+endif()
+
+```
+## windows/flutter_bin_plugin.cpp
+```cpp
+#include "flutter_bin_plugin.h"
+
+// This must be included before many other Windows headers.
+#include <windows.h>
+
+// For getPlatformVersion; remove unless needed for your plugin implementation.
+#include <VersionHelpers.h>
+
+#include <flutter/method_channel.h>
+#include <flutter/plugin_registrar_windows.h>
+#include <flutter/standard_method_codec.h>
+
+#include <memory>
+#include <sstream>
+
+namespace flutter_bin {
+
+// static
+void FlutterBinPlugin::RegisterWithRegistrar(
+    flutter::PluginRegistrarWindows *registrar) {
+  auto channel =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          registrar->messenger(), "flutter_bin",
+          &flutter::StandardMethodCodec::GetInstance());
+
+  auto plugin = std::make_unique<FlutterBinPlugin>();
+
+  channel->SetMethodCallHandler(
+      [plugin_pointer = plugin.get()](const auto &call, auto result) {
+        plugin_pointer->HandleMethodCall(call, std::move(result));
+      });
+
+  registrar->AddPlugin(std::move(plugin));
+}
+
+FlutterBinPlugin::FlutterBinPlugin() {}
+
+FlutterBinPlugin::~FlutterBinPlugin() {}
+
+void FlutterBinPlugin::HandleMethodCall(
+    const flutter::MethodCall<flutter::EncodableValue> &method_call,
+    std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+  if (method_call.method_name().compare("getPlatformVersion") == 0) {
+    std::ostringstream version_stream;
+    version_stream << "Windows ";
+    if (IsWindows10OrGreater()) {
+      version_stream << "10+";
+    } else if (IsWindows8OrGreater()) {
+      version_stream << "8";
+    } else if (IsWindows7OrGreater()) {
+      version_stream << "7";
+    }
+    result->Success(flutter::EncodableValue(version_stream.str()));
+  } else {
+    result->NotImplemented();
+  }
+}
+
+}  // namespace flutter_bin
+
+```
+## windows/flutter_bin_plugin.h
+```h
+#ifndef FLUTTER_PLUGIN_FLUTTER_BIN_PLUGIN_H_
+#define FLUTTER_PLUGIN_FLUTTER_BIN_PLUGIN_H_
+
+#include <flutter/method_channel.h>
+#include <flutter/plugin_registrar_windows.h>
+
+#include <memory>
+
+namespace flutter_bin {
+
+class FlutterBinPlugin : public flutter::Plugin {
+ public:
+  static void RegisterWithRegistrar(flutter::PluginRegistrarWindows *registrar);
+
+  FlutterBinPlugin();
+
+  virtual ~FlutterBinPlugin();
+
+  // Disallow copy and assign.
+  FlutterBinPlugin(const FlutterBinPlugin&) = delete;
+  FlutterBinPlugin& operator=(const FlutterBinPlugin&) = delete;
+
+  // Called when a method is called on this plugin's channel from Dart.
+  void HandleMethodCall(
+      const flutter::MethodCall<flutter::EncodableValue> &method_call,
+      std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
+};
+
+}  // namespace flutter_bin
+
+#endif  // FLUTTER_PLUGIN_FLUTTER_BIN_PLUGIN_H_
+
+```
+## windows/flutter_bin_plugin_c_api.cpp
+```cpp
+#include "include/flutter_bin/flutter_bin_plugin_c_api.h"
+
+#include <flutter/plugin_registrar_windows.h>
+
+#include "flutter_bin_plugin.h"
+
+void FlutterBinPluginCApiRegisterWithRegistrar(
+    FlutterDesktopPluginRegistrarRef registrar) {
+  flutter_bin::FlutterBinPlugin::RegisterWithRegistrar(
+      flutter::PluginRegistrarManager::GetInstance()
+          ->GetRegistrar<flutter::PluginRegistrarWindows>(registrar));
+}
+
+```
+## windows/include/flutter_bin/flutter_bin_plugin_c_api.h
+```h
+#ifndef FLUTTER_PLUGIN_FLUTTER_BIN_PLUGIN_C_API_H_
+#define FLUTTER_PLUGIN_FLUTTER_BIN_PLUGIN_C_API_H_
+
+#include <flutter_plugin_registrar.h>
+
+#ifdef FLUTTER_PLUGIN_IMPL
+#define FLUTTER_PLUGIN_EXPORT __declspec(dllexport)
+#else
+#define FLUTTER_PLUGIN_EXPORT __declspec(dllimport)
+#endif
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+FLUTTER_PLUGIN_EXPORT void FlutterBinPluginCApiRegisterWithRegistrar(
+    FlutterDesktopPluginRegistrarRef registrar);
+
+#if defined(__cplusplus)
+}  // extern "C"
+#endif
+
+#endif  // FLUTTER_PLUGIN_FLUTTER_BIN_PLUGIN_C_API_H_
+
+```
+## windows/test/flutter_bin_plugin_test.cpp
+```cpp
+#include <flutter/method_call.h>
+#include <flutter/method_result_functions.h>
+#include <flutter/standard_method_codec.h>
+#include <gtest/gtest.h>
+#include <windows.h>
+
+#include <memory>
+#include <string>
+#include <variant>
+
+#include "flutter_bin_plugin.h"
+
+namespace flutter_bin {
+namespace test {
+
+namespace {
+
+using flutter::EncodableMap;
+using flutter::EncodableValue;
+using flutter::MethodCall;
+using flutter::MethodResultFunctions;
+
+}  // namespace
+
+TEST(FlutterBinPlugin, GetPlatformVersion) {
+  FlutterBinPlugin plugin;
+  // Save the reply value from the success callback.
+  std::string result_string;
+  plugin.HandleMethodCall(
+      MethodCall("getPlatformVersion", std::make_unique<EncodableValue>()),
+      std::make_unique<MethodResultFunctions<>>(
+          [&result_string](const EncodableValue* result) {
+            result_string = std::get<std::string>(*result);
+          },
+          nullptr, nullptr));
+
+  // Since the exact string varies by host, just ensure that it's a string
+  // with the expected format.
+  EXPECT_TRUE(result_string.rfind("Windows ", 0) == 0);
+}
+
+}  // namespace test
+}  // namespace flutter_bin
+
+```
