@@ -5,6 +5,7 @@
 #include <flutter/plugin_registrar_windows.h>
 
 #include <memory>
+#include <string>
 
 namespace flutter_bin {
 
@@ -24,6 +25,11 @@ class FlutterBinPlugin : public flutter::Plugin {
   void HandleMethodCall(
       const flutter::MethodCall<flutter::EncodableValue> &method_call,
       std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
+      
+ private:
+  // Methods to handle specific platform calls
+  std::string GetBinaryFileVersion(const std::string& file_path);
+  std::string PickFileAndGetVersion();
 };
 
 }  // namespace flutter_bin
