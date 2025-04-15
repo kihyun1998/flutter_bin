@@ -27,9 +27,4 @@ abstract class FlutterBinPlatform extends PlatformInterface {
     throw UnimplementedError(
         'getBinaryFileVersion() has not been implemented.');
   }
-
-  Future<String?> pickFileAndGetVersion() {
-    throw UnimplementedError(
-        'pickFileAndGetVersion() has not been implemented.');
-  }
 }

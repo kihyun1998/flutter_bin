@@ -29,7 +29,6 @@ class FlutterBinPlugin : public flutter::Plugin {
  private:
   // Methods to handle specific platform calls
   std::string GetBinaryFileVersion(const std::string& file_path);
-  std::string PickFileAndGetVersion();
 };
 
 }  // namespace flutter_bin

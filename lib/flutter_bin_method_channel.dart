@@ -15,11 +15,4 @@ class MethodChannelFlutterBin extends FlutterBinPlatform {
         .invokeMethod<String?>('getBinaryFileVersion', {'filePath': filePath});
     return version;
   }
-
-  @override
-  Future<String?> pickFileAndGetVersion() async {
-    final version =
-        await methodChannel.invokeMethod<String?>('pickFileAndGetVersion');
-    return version;
-  }
 }

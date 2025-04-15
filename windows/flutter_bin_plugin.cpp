@@ -3,9 +3,6 @@
 // This must be included before many other Windows headers.
 #include <windows.h>
 
-// For file open dialog
-#include <shobjidl.h> 
-
 // For version info
 #include <winver.h>
 
@@ -65,13 +62,6 @@ void FlutterBinPlugin::HandleMethodCall(
     } else {
       result->Error("INVALID_ARGUMENT", "Arguments must be a map");
     }
-  } else if (method_call.method_name().compare("pickFileAndGetVersion") == 0) {
-    std::string version = PickFileAndGetVersion();
-    if (!version.empty()) {
-      result->Success(flutter::EncodableValue(version));
-    } else {
-      result->Success(nullptr);
-    }
   } else {
     result->NotImplemented();
   }
@@ -82,6 +72,13 @@ std::string FlutterBinPlugin::GetBinaryFileVersion(const std::string& file_path)
   int size_needed = MultiByteToWideChar(CP_UTF8, 0, file_path.c_str(), -1, NULL, 0);
   std::wstring wide_path(size_needed, 0);
   MultiByteToWideChar(CP_UTF8, 0, file_path.c_str(), -1, &wide_path[0], size_needed);
+
+  // Check if file exists
+  DWORD file_attributes = GetFileAttributesW(wide_path.c_str());
+  if (file_attributes == INVALID_FILE_ATTRIBUTES) {
+    // File doesn't exist or is inaccessible
+    return "";
+  }
 
   // Get the size of the version info
   DWORD dummy;
@@ -116,72 +113,6 @@ std::string FlutterBinPlugin::GetBinaryFileVersion(const std::string& file_path)
   std::ostringstream version_stream;
   version_stream << major << "." << minor << "." << build << "." << revision;
   return version_stream.str();
-}
-
-std::string FlutterBinPlugin::PickFileAndGetVersion() {
-  // Initialize COM
-  HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
-  if (FAILED(hr)) {
-    return "";
-  }
-
-  // Create FileOpenDialog
-  IFileOpenDialog* file_dialog = nullptr;
-  hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER,
-                        IID_PPV_ARGS(&file_dialog));
-  
-  if (FAILED(hr)) {
-    CoUninitialize();
-    return "";
-  }
-
-  // Set file types filter (all files)
-  COMDLG_FILTERSPEC filter_spec[] = {
-      {L"Executable Files", L"*.exe;*.dll;*.ocx;*.sys"},
-      {L"All Files", L"*.*"}
-  };
-  file_dialog->SetFileTypes(2, filter_spec);
-
-  // Show the dialog
-  hr = file_dialog->Show(NULL);
-  if (FAILED(hr)) {
-    file_dialog->Release();
-    CoUninitialize();
-    return "";
-  }
-
-  // Get the selected file
-  IShellItem* selected_item = nullptr;
-  hr = file_dialog->GetResult(&selected_item);
-  if (FAILED(hr)) {
-    file_dialog->Release();
-    CoUninitialize();
-    return "";
-  }
-
-  // Get the file path
-  PWSTR file_path_raw = nullptr;
-  hr = selected_item->GetDisplayName(SIGDN_FILESYSPATH, &file_path_raw);
-  if (FAILED(hr)) {
-    selected_item->Release();
-    file_dialog->Release();
-    CoUninitialize();
-    return "";
-  }
-
-  // Convert wide string to UTF-8
-  int size_needed = WideCharToMultiByte(CP_UTF8, 0, file_path_raw, -1, NULL, 0, NULL, NULL);
-  std::string file_path(size_needed, 0);
-  WideCharToMultiByte(CP_UTF8, 0, file_path_raw, -1, &file_path[0], size_needed, NULL, NULL);
-
-  // Free resources
-  CoTaskMemFree(file_path_raw);
-  selected_item->Release();
-  file_dialog->Release();
-  CoUninitialize();
-
-  // Get the file version
-  return GetBinaryFileVersion(file_path);
 }
 
 }  // namespace flutter_bin
