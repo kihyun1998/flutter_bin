@@ -70,8 +70,6 @@ void main() {
 ```
 ## example/lib/main.dart
 ```dart
-import 'dart:async';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -81,221 +79,114 @@ void main() {
   runApp(const MyApp());
 }
 
-class MyApp extends StatefulWidget {
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
-  State<MyApp> createState() => _MyAppState();
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      home: BinaryMetadataScreen(),
+    );
+  }
 }
 
-class _MyAppState extends State<MyApp> {
-  String _fileVersion = 'No file selected';
-  BinaryFileMetadata? _fileMetadata;
-  final _flutterBinPlugin = FlutterBin();
-  final _filePathController = TextEditingController();
+class BinaryMetadataScreen extends StatefulWidget {
+  const BinaryMetadataScreen({super.key});
 
   @override
-  void initState() {
-    super.initState();
-  }
+  State<BinaryMetadataScreen> createState() => _BinaryMetadataScreenState();
+}
 
-  @override
-  void dispose() {
-    _filePathController.dispose();
-    super.dispose();
-  }
+class _BinaryMetadataScreenState extends State<BinaryMetadataScreen> {
+  final FlutterBin _plugin = FlutterBin();
+  String? _filePath;
+  String _version = '';
+  BinaryFileMetadata? _metadata;
 
-  // Method 1: Get version from manually entered file path
-  Future<void> _getFileVersionFromPath() async {
-    String fileVersion;
-    final filePath = _filePathController.text.trim();
-
-    if (filePath.isEmpty) {
-      fileVersion = 'Please enter a file path';
+  Future<void> _pickFile() async {
+    final result = await FilePicker.platform.pickFiles();
+    if (result != null && result.files.single.path != null) {
       setState(() {
-        _fileVersion = fileVersion;
-        _fileMetadata = null;
-      });
-      return;
-    }
-
-    try {
-      final version = await _flutterBinPlugin.getBinaryFileVersion(filePath);
-      fileVersion = version ?? 'No version information available';
-    } on PlatformException catch (e) {
-      fileVersion = 'Error: ${e.message}';
-    }
-
-    if (!mounted) return;
-
-    setState(() {
-      _fileVersion = fileVersion;
-      _fileMetadata = null; // Clear metadata when only version is retrieved
-    });
-  }
-
-  // Method 2: Get version using FilePicker
-  Future<void> _pickFileAndGetVersion() async {
-    try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.any,
-        allowMultiple: false,
-      );
-
-      if (result != null && result.files.single.path != null) {
-        final filePath = result.files.single.path!;
-        _filePathController.text = filePath; // Update the text field
-
-        final version = await _flutterBinPlugin.getBinaryFileVersion(filePath);
-        final fileVersion = version ?? 'No version information available';
-
-        if (!mounted) return;
-
-        setState(() {
-          _fileVersion = fileVersion;
-          _fileMetadata = null; // Clear metadata when only version is retrieved
-        });
-      }
-    } on PlatformException catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        _fileVersion = 'Error: ${e.message}';
-        _fileMetadata = null;
+        _filePath = result.files.single.path!;
+        _version = '';
+        _metadata = null;
       });
     }
   }
 
-  // Method 3: Get full metadata
-  Future<void> _getFullMetadata() async {
-    final filePath = _filePathController.text.trim();
-
-    if (filePath.isEmpty) {
-      setState(() {
-        _fileMetadata = null;
-        _fileVersion = 'Please enter a file path';
-      });
-      return;
-    }
-
+  Future<void> _getVersion() async {
+    if (_filePath == null) return;
     try {
-      final metadata = await _flutterBinPlugin.getBinaryFileMetadata(filePath);
-
-      if (!mounted) return;
-
+      final version = await _plugin.getBinaryFileVersion(_filePath!);
       setState(() {
-        _fileMetadata = metadata;
-        _fileVersion = metadata.version.isNotEmpty
-            ? metadata.version
-            : 'No version information available';
+        _version = version ?? 'No version info';
+        _metadata = null;
       });
     } on PlatformException catch (e) {
-      if (!mounted) return;
-
       setState(() {
-        _fileMetadata = null;
-        _fileVersion = 'Error: ${e.message}';
+        _version = 'Error: ${e.message}';
+        _metadata = null;
       });
     }
   }
 
-  // Method 4: Pick file and get full metadata
-  Future<void> _pickFileAndGetMetadata() async {
+  Future<void> _getMetadata() async {
+    if (_filePath == null) return;
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.any,
-        allowMultiple: false,
-      );
-
-      if (result != null && result.files.single.path != null) {
-        final filePath = result.files.single.path!;
-        _filePathController.text = filePath; // Update the text field
-
-        final metadata =
-            await _flutterBinPlugin.getBinaryFileMetadata(filePath);
-
-        if (!mounted) return;
-
-        setState(() {
-          _fileMetadata = metadata;
-          _fileVersion = metadata.version.isNotEmpty
-              ? metadata.version
-              : 'No version information available';
-        });
-      }
-    } on PlatformException catch (e) {
-      if (!mounted) return;
-
+      final metadata = await _plugin.getBinaryFileMetadata(_filePath!);
       setState(() {
-        _fileMetadata = null;
-        _fileVersion = 'Error: ${e.message}';
+        _version =
+            metadata.version.isNotEmpty ? metadata.version : 'No version info';
+        _metadata = metadata;
+      });
+    } on PlatformException catch (e) {
+      setState(() {
+        _version = 'Error: ${e.message}';
+        _metadata = null;
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(
-          title: const Text('Binary File Metadata Plugin'),
-        ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // File path input
-              const Text('Enter file path or select file:',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              TextField(
-                controller: _filePathController,
-                decoration: const InputDecoration(
-                  hintText: 'C:\\path\\to\\file.exe',
+    return Scaffold(
+      appBar: AppBar(title: const Text('Binary Metadata')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ElevatedButton(
+              onPressed: _pickFile,
+              child: const Text('Select Binary File'),
+            ),
+            const SizedBox(height: 8),
+            Text(_filePath ?? 'No file selected'),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              children: [
+                ElevatedButton(
+                  onPressed: _getVersion,
+                  child: const Text('Get Version'),
                 ),
-              ),
-              const SizedBox(height: 16),
-
-              // Action buttons
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  ElevatedButton(
-                    onPressed: _getFileVersionFromPath,
-                    child: const Text('Get Version Only'),
-                  ),
-                  ElevatedButton(
-                    onPressed: _getFullMetadata,
-                    child: const Text('Get Full Metadata'),
-                  ),
-                  ElevatedButton(
-                    onPressed: _pickFileAndGetVersion,
-                    child: const Text('Select & Get Version'),
-                  ),
-                  ElevatedButton(
-                    onPressed: _pickFileAndGetMetadata,
-                    child: const Text('Select & Get Metadata'),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 24),
-
-              // Basic version result
-              const Text('File Version:',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              Text(_fileVersion),
-
-              // Full metadata display (when available)
-              if (_fileMetadata != null) ...[
-                const SizedBox(height: 16),
-                const Text('Full Metadata:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                _buildMetadataTable(),
+                ElevatedButton(
+                  onPressed: _getMetadata,
+                  child: const Text('Get Full Metadata'),
+                ),
               ],
+            ),
+            const SizedBox(height: 24),
+            if (_version.isNotEmpty)
+              Text('Version: $_version',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+            if (_metadata != null) ...[
+              const SizedBox(height: 16),
+              const Text('Metadata:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              _buildMetadataTable(),
             ],
-          ),
+          ],
         ),
       ),
     );
@@ -303,36 +194,29 @@ class _MyAppState extends State<MyApp> {
 
   Widget _buildMetadataTable() {
     return Table(
-      border: TableBorder.all(color: Colors.grey.shade300),
-      columnWidths: const {
-        0: FlexColumnWidth(1),
-        1: FlexColumnWidth(2),
-      },
+      columnWidths: const {0: IntrinsicColumnWidth()},
+      border: TableBorder.all(color: Colors.grey),
       children: [
-        _buildTableRow('Version', _fileMetadata!.version),
-        _buildTableRow('Product Name', _fileMetadata!.productName),
-        _buildTableRow('File Description', _fileMetadata!.fileDescription),
-        _buildTableRow('Copyright', _fileMetadata!.legalCopyright),
-        _buildTableRow('Original Filename', _fileMetadata!.originalFilename),
-        _buildTableRow('Company Name', _fileMetadata!.companyName),
+        _buildRow('Product Name', _metadata!.productName),
+        _buildRow('Description', _metadata!.fileDescription),
+        _buildRow('Copyright', _metadata!.legalCopyright),
+        _buildRow('Original Filename', _metadata!.originalFilename),
+        _buildRow('Company', _metadata!.companyName),
       ],
     );
   }
 
-  TableRow _buildTableRow(String label, String value) {
-    return TableRow(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(8.0),
-          child:
-              Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Text(value.isEmpty ? 'Not available' : value),
-        ),
-      ],
-    );
+  TableRow _buildRow(String label, String value) {
+    return TableRow(children: [
+      Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+      ),
+      Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Text(value.isNotEmpty ? value : 'N/A'),
+      ),
+    ]);
   }
 }
 
@@ -413,6 +297,10 @@ class AppDelegate: FlutterAppDelegate {
 	<true/>
 	<key>com.apple.security.network.server</key>
 	<true/>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+
+
 </dict>
 </plist>
 
@@ -480,6 +368,10 @@ class MainFlutterWindow: NSWindow {
 <dict>
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+
+
 </dict>
 </plist>
 
@@ -689,12 +581,63 @@ public class FlutterBinPlugin: NSObject, FlutterPlugin {
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    guard let args = call.arguments as? [String: Any],
+          let filePath = args["filePath"] as? String else{
+        result(FlutterError(code: "INVALID_ARGUMENT", message: "Missing or invalid 'filePath'", details: nil))
+      return
+    }
+
     switch call.method {
-    case "getPlatformVersion":
-      result("macOS " + ProcessInfo.processInfo.operatingSystemVersionString)
+    case "getBinaryFileVersion":
+      result(getBinaryFileVersion(filePath: filePath))
+    case "getBinaryFileMetadata":
+      result(getBinaryFileMetadata(filePath: filePath))
     default:
       result(FlutterMethodNotImplemented)
     }
+  }
+
+  private func getBinaryFileVersion(filePath: String) -> String? {
+    let infoPlistPath = resolveInfoPlistPath(from: filePath)
+    guard let infoPlist = NSDictionary(contentsOfFile: infoPlistPath),
+          let version = infoPlist["CFBundleShortVersionString"] as? String else {
+      return nil
+    }
+    return version
+  }
+
+  private func getBinaryFileMetadata(filePath: String) -> [String: String] {
+    var metadata: [String: String] = [:]
+
+    let infoPlistPath = resolveInfoPlistPath(from: filePath)
+    guard let infoPlist = NSDictionary(contentsOfFile: infoPlistPath) else {
+      return metadata
+    }
+
+    metadata["version"] = infoPlist["CFBundleShortVersionString"] as? String ?? ""
+    metadata["productName"] = infoPlist["CFBundleName"] as? String ?? ""
+    metadata["fileDescription"] = infoPlist["CFBundleGetInfoString"] as? String ?? ""
+    metadata["legalCopyright"] = infoPlist["NSHumanReadableCopyright"] as? String ?? ""
+    metadata["originalFilename"] = infoPlist["CFBundleExecutable"] as? String ?? ""
+    metadata["companyName"] = "" // Not typically available in macOS
+
+    return metadata
+  }
+
+  /// Resolves the actual Info.plist path based on input path type
+  private func resolveInfoPlistPath(from filePath: String) -> String {
+    let fileURL = URL(fileURLWithPath: filePath)
+
+    // If it's a .app bundle, go to Contents/Info.plist
+    if fileURL.pathExtension == "app" || filePath.contains(".app/") {
+      let appPath = fileURL.pathComponents.contains("Contents")
+        ? fileURL.deletingLastPathComponent().deletingLastPathComponent()
+        : fileURL
+      return appPath.appendingPathComponent("Contents/Info.plist").path
+    }
+
+    // Otherwise try to treat filePath as direct .plist for standalone binaries
+    return filePath + "/Contents/Info.plist"
   }
 }
 

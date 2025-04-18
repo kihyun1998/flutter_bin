@@ -2,7 +2,7 @@
 
 [![pub package](https://img.shields.io/pub/v/flutter_bin.svg)](https://pub.dev/packages/flutter_bin)
 
-A Flutter plugin to retrieve metadata from binary files (executable files) on desktop platforms. Currently supports Windows platform.
+A Flutter plugin to retrieve metadata from binary files (executable files) on desktop platforms. Currently supports Windows and macOS platforms.
 
 ## Features
 
@@ -22,7 +22,7 @@ Add the package to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  flutter_bin: ^1.0.0
+  flutter_bin: ^1.1.0
 ```
 
 ## Usage
@@ -38,6 +38,10 @@ final flutterBin = FlutterBin();
 // Get the version information
 final String? version = await flutterBin.getBinaryFileVersion('C:\\path\\to\\file.exe');
 print('File version: $version');
+
+// On macOS
+final String? macVersion = await flutterBin.getBinaryFileVersion('/Applications/Example.app');
+print('macOS app version: $macVersion');
 ```
 
 ### Full Metadata Retrieval
@@ -48,8 +52,11 @@ import 'package:flutter_bin/flutter_bin.dart';
 // Create an instance of the plugin
 final flutterBin = FlutterBin();
 
-// Get comprehensive metadata
+// Get comprehensive metadata (Windows)
 final metadata = await flutterBin.getBinaryFileMetadata('C:\\path\\to\\file.exe');
+
+// Or for macOS
+final macMetadata = await flutterBin.getBinaryFileMetadata('/Applications/Example.app');
 
 // Access specific properties
 print('File version: ${metadata.version}');
@@ -86,24 +93,46 @@ if (result != null && result.files.single.path != null) {
 
 ## Metadata Fields
 
-The plugin extracts the following metadata from Windows binary files:
+The plugin extracts the following metadata from binary files:
 
-| Field | Description | Windows Source |
-|-------|-------------|----------------|
-| version | File version (e.g., 1.2.3.4) | FileVersion |
-| productName | The product name | ProductName |
-| fileDescription | Description of the file | FileDescription |
-| legalCopyright | Copyright information | LegalCopyright |
-| originalFilename | Original name of the file | OriginalFilename |
-| companyName | Company or developer name | CompanyName |
+| Field | Description | Windows Source | macOS Source |
+|-------|-------------|----------------|--------------|
+| version | File version (e.g., 1.2.3.4) | FileVersion | CFBundleShortVersionString |
+| productName | The product name | ProductName | CFBundleName |
+| fileDescription | Description of the file | FileDescription | CFBundleGetInfoString |
+| legalCopyright | Copyright information | LegalCopyright | NSHumanReadableCopyright |
+| originalFilename | Original name of the file | OriginalFilename | CFBundleExecutable |
+| companyName | Company or developer name | CompanyName | Not typically available |
 
 ## Platform Support
 
 | Platform | Status |
 |----------|--------|
 | Windows  | ✅ Supported |
-| macOS    | ❌ Planned |
+| macOS    | ✅ Supported |
 | Linux    | ❌ Planned |
+
+## File Path Formats
+
+### Windows
+Use standard Windows paths with double backslashes or forward slashes:
+```
+C:\\Program Files\\Application\\app.exe
+```
+or
+```
+C:/Program Files/Application/app.exe
+```
+
+### macOS
+For macOS applications (.app bundles):
+```
+/Applications/Example.app
+```
+or specific binaries within the bundle:
+```
+/Applications/Example.app/Contents/MacOS/Example
+```
 
 ## Example
 
