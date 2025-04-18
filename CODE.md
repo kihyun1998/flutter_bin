@@ -8,6 +8,14 @@ flutter_bin/
     │   └── plugin_integration_test.dart
     ├── lib/
     │   └── main.dart
+    ├── macos/
+    │   ├── Runner/
+    │   │   ├── AppDelegate.swift
+    │   │   ├── DebugProfile.entitlements
+    │   │   ├── Info.plist
+    │   │   ├── MainFlutterWindow.swift
+    │   │   └── Release.entitlements
+    │   └── Podfile
     └── test/
     │   └── widget_test.dart
 ├── lib/
@@ -16,6 +24,12 @@ flutter_bin/
     ├── flutter_bin.dart
     ├── flutter_bin_method_channel.dart
     └── flutter_bin_platform_interface.dart
+├── macos/
+    ├── Classes/
+    │   └── FlutterBinPlugin.swift
+    ├── Resources/
+    │   └── PrivacyInfo.xcprivacy
+    └── flutter_bin.podspec
 ├── test/
     ├── flutter_bin_method_channel_test.dart
     └── flutter_bin_test.dart
@@ -76,6 +90,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   String _fileVersion = 'No file selected';
+  BinaryFileMetadata? _fileMetadata;
   final _flutterBinPlugin = FlutterBin();
   final _filePathController = TextEditingController();
 
@@ -97,26 +112,30 @@ class _MyAppState extends State<MyApp> {
 
     if (filePath.isEmpty) {
       fileVersion = 'Please enter a file path';
-    } else {
-      try {
-        final version = await _flutterBinPlugin.getBinaryFileVersion(filePath);
-        fileVersion = version ?? 'No version information available';
-      } on PlatformException catch (e) {
-        fileVersion = 'Error: ${e.message}';
-      }
+      setState(() {
+        _fileVersion = fileVersion;
+        _fileMetadata = null;
+      });
+      return;
+    }
+
+    try {
+      final version = await _flutterBinPlugin.getBinaryFileVersion(filePath);
+      fileVersion = version ?? 'No version information available';
+    } on PlatformException catch (e) {
+      fileVersion = 'Error: ${e.message}';
     }
 
     if (!mounted) return;
 
     setState(() {
       _fileVersion = fileVersion;
+      _fileMetadata = null; // Clear metadata when only version is retrieved
     });
   }
 
   // Method 2: Get version using FilePicker
   Future<void> _pickFileAndGetVersion() async {
-    String fileVersion;
-
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.any,
@@ -128,19 +147,90 @@ class _MyAppState extends State<MyApp> {
         _filePathController.text = filePath; // Update the text field
 
         final version = await _flutterBinPlugin.getBinaryFileVersion(filePath);
-        fileVersion = version ?? 'No version information available';
-      } else {
-        fileVersion = 'File selection canceled';
+        final fileVersion = version ?? 'No version information available';
+
+        if (!mounted) return;
+
+        setState(() {
+          _fileVersion = fileVersion;
+          _fileMetadata = null; // Clear metadata when only version is retrieved
+        });
       }
     } on PlatformException catch (e) {
-      fileVersion = 'Error: ${e.message}';
+      if (!mounted) return;
+
+      setState(() {
+        _fileVersion = 'Error: ${e.message}';
+        _fileMetadata = null;
+      });
+    }
+  }
+
+  // Method 3: Get full metadata
+  Future<void> _getFullMetadata() async {
+    final filePath = _filePathController.text.trim();
+
+    if (filePath.isEmpty) {
+      setState(() {
+        _fileMetadata = null;
+        _fileVersion = 'Please enter a file path';
+      });
+      return;
     }
 
-    if (!mounted) return;
+    try {
+      final metadata = await _flutterBinPlugin.getBinaryFileMetadata(filePath);
 
-    setState(() {
-      _fileVersion = fileVersion;
-    });
+      if (!mounted) return;
+
+      setState(() {
+        _fileMetadata = metadata;
+        _fileVersion = metadata.version.isNotEmpty
+            ? metadata.version
+            : 'No version information available';
+      });
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _fileMetadata = null;
+        _fileVersion = 'Error: ${e.message}';
+      });
+    }
+  }
+
+  // Method 4: Pick file and get full metadata
+  Future<void> _pickFileAndGetMetadata() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        allowMultiple: false,
+      );
+
+      if (result != null && result.files.single.path != null) {
+        final filePath = result.files.single.path!;
+        _filePathController.text = filePath; // Update the text field
+
+        final metadata =
+            await _flutterBinPlugin.getBinaryFileMetadata(filePath);
+
+        if (!mounted) return;
+
+        setState(() {
+          _fileMetadata = metadata;
+          _fileVersion = metadata.version.isNotEmpty
+              ? metadata.version
+              : 'No version information available';
+        });
+      }
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _fileMetadata = null;
+        _fileVersion = 'Error: ${e.message}';
+      });
+    }
   }
 
   @override
@@ -148,15 +238,15 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       home: Scaffold(
         appBar: AppBar(
-          title: const Text('Binary File Version Plugin'),
+          title: const Text('Binary File Metadata Plugin'),
         ),
-        body: Padding(
+        body: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Method 1: Manual file path input
-              const Text('Method 1: Enter file path manually',
+              // File path input
+              const Text('Enter file path or select file:',
                   style: TextStyle(fontWeight: FontWeight.bold)),
               TextField(
                 controller: _filePathController,
@@ -164,33 +254,234 @@ class _MyAppState extends State<MyApp> {
                   hintText: 'C:\\path\\to\\file.exe',
                 ),
               ),
-              const SizedBox(height: 10),
-              ElevatedButton(
-                onPressed: _getFileVersionFromPath,
-                child: const Text('Get Version from Path'),
-              ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-              // Method 2: FilePicker
-              const Text('Method 2: Use FilePicker',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              ElevatedButton(
-                onPressed: _pickFileAndGetVersion,
-                child: const Text('Select File Using FilePicker'),
+              // Action buttons
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ElevatedButton(
+                    onPressed: _getFileVersionFromPath,
+                    child: const Text('Get Version Only'),
+                  ),
+                  ElevatedButton(
+                    onPressed: _getFullMetadata,
+                    child: const Text('Get Full Metadata'),
+                  ),
+                  ElevatedButton(
+                    onPressed: _pickFileAndGetVersion,
+                    child: const Text('Select & Get Version'),
+                  ),
+                  ElevatedButton(
+                    onPressed: _pickFileAndGetMetadata,
+                    child: const Text('Select & Get Metadata'),
+                  ),
+                ],
               ),
-              const SizedBox(height: 20),
 
-              // Result display
-              const Text('Result:',
+              const SizedBox(height: 24),
+
+              // Basic version result
+              const Text('File Version:',
                   style: TextStyle(fontWeight: FontWeight.bold)),
-              Text('File version: $_fileVersion'),
+              Text(_fileVersion),
+
+              // Full metadata display (when available)
+              if (_fileMetadata != null) ...[
+                const SizedBox(height: 16),
+                const Text('Full Metadata:',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                _buildMetadataTable(),
+              ],
             ],
           ),
         ),
       ),
     );
   }
+
+  Widget _buildMetadataTable() {
+    return Table(
+      border: TableBorder.all(color: Colors.grey.shade300),
+      columnWidths: const {
+        0: FlexColumnWidth(1),
+        1: FlexColumnWidth(2),
+      },
+      children: [
+        _buildTableRow('Version', _fileMetadata!.version),
+        _buildTableRow('Product Name', _fileMetadata!.productName),
+        _buildTableRow('File Description', _fileMetadata!.fileDescription),
+        _buildTableRow('Copyright', _fileMetadata!.legalCopyright),
+        _buildTableRow('Original Filename', _fileMetadata!.originalFilename),
+        _buildTableRow('Company Name', _fileMetadata!.companyName),
+      ],
+    );
+  }
+
+  TableRow _buildTableRow(String label, String value) {
+    return TableRow(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child:
+              Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Text(value.isEmpty ? 'Not available' : value),
+        ),
+      ],
+    );
+  }
 }
+
+```
+## example/macos/Podfile
+```
+platform :osx, '10.14'
+
+# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+project 'Runner', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'ephemeral', 'Flutter-Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure \"flutter pub get\" is executed first"
+  end
+
+  File.foreach(generated_xcode_build_settings_path) do |line|
+    matches = line.match(/FLUTTER_ROOT\=(.*)/)
+    return matches[1].strip if matches
+  end
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Flutter-Generated.xcconfig, then run \"flutter pub get\""
+end
+
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+
+flutter_macos_podfile_setup
+
+target 'Runner' do
+  use_frameworks!
+  use_modular_headers!
+
+  flutter_install_all_macos_pods File.dirname(File.realpath(__FILE__))
+  target 'RunnerTests' do
+    inherit! :search_paths
+  end
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_macos_build_settings(target)
+  end
+end
+
+```
+## example/macos/Runner/AppDelegate.swift
+```swift
+import Cocoa
+import FlutterMacOS
+
+@main
+class AppDelegate: FlutterAppDelegate {
+  override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+    return true
+  }
+
+  override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
+    return true
+  }
+}
+
+```
+## example/macos/Runner/DebugProfile.entitlements
+```entitlements
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+	<key>com.apple.security.network.server</key>
+	<true/>
+</dict>
+</plist>
+
+```
+## example/macos/Runner/Info.plist
+```plist
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIconFile</key>
+	<string></string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(FLUTTER_BUILD_NAME)</string>
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>$(PRODUCT_COPYRIGHT)</string>
+	<key>NSMainNibFile</key>
+	<string>MainMenu</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+</dict>
+</plist>
+
+```
+## example/macos/Runner/MainFlutterWindow.swift
+```swift
+import Cocoa
+import FlutterMacOS
+
+class MainFlutterWindow: NSWindow {
+  override func awakeFromNib() {
+    let flutterViewController = FlutterViewController()
+    let windowFrame = self.frame
+    self.contentViewController = flutterViewController
+    self.setFrame(windowFrame, display: true)
+
+    RegisterGeneratedPlugins(registry: flutterViewController)
+
+    super.awakeFromNib()
+  }
+}
+
+```
+## example/macos/Runner/Release.entitlements
+```entitlements
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+</dict>
+</plist>
 
 ```
 ## example/test/widget_test.dart
@@ -228,6 +519,8 @@ void main() {
 ```dart
 import 'flutter_bin_platform_interface.dart';
 import 'models/binary_file_metadata.dart';
+
+export 'models/binary_file_metadata.dart';
 
 class FlutterBin {
   /// Gets the version of a binary file.
@@ -383,6 +676,79 @@ class BinaryFileMetadata {
 }
 
 ```
+## macos/Classes/FlutterBinPlugin.swift
+```swift
+import Cocoa
+import FlutterMacOS
+
+public class FlutterBinPlugin: NSObject, FlutterPlugin {
+  public static func register(with registrar: FlutterPluginRegistrar) {
+    let channel = FlutterMethodChannel(name: "flutter_bin", binaryMessenger: registrar.messenger)
+    let instance = FlutterBinPlugin()
+    registrar.addMethodCallDelegate(instance, channel: channel)
+  }
+
+  public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    switch call.method {
+    case "getPlatformVersion":
+      result("macOS " + ProcessInfo.processInfo.operatingSystemVersionString)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+}
+
+```
+## macos/Resources/PrivacyInfo.xcprivacy
+```xcprivacy
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyTracking</key>
+	<false/>
+</dict>
+</plist>
+
+```
+## macos/flutter_bin.podspec
+```podspec
+#
+# To learn more about a Podspec see http://guides.cocoapods.org/syntax/podspec.html.
+# Run `pod lib lint flutter_bin.podspec` to validate before publishing.
+#
+Pod::Spec.new do |s|
+  s.name             = 'flutter_bin'
+  s.version          = '0.0.1'
+  s.summary          = 'A new Flutter plugin project.'
+  s.description      = <<-DESC
+A new Flutter plugin project.
+                       DESC
+  s.homepage         = 'http://example.com'
+  s.license          = { :file => '../LICENSE' }
+  s.author           = { 'Your Company' => 'email@example.com' }
+
+  s.source           = { :path => '.' }
+  s.source_files = 'Classes/**/*'
+
+  # If your plugin requires a privacy manifest, for example if it collects user
+  # data, update the PrivacyInfo.xcprivacy file to describe your plugin's
+  # privacy impact, and then uncomment this line. For more information,
+  # see https://developer.apple.com/documentation/bundleresources/privacy_manifest_files
+  # s.resource_bundles = {'flutter_bin_privacy' => ['Resources/PrivacyInfo.xcprivacy']}
+
+  s.dependency 'FlutterMacOS'
+
+  s.platform = :osx, '10.11'
+  s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
+  s.swift_version = '5.0'
+end
+
+```
 ## test/flutter_bin_method_channel_test.dart
 ```dart
 import 'package:flutter/services.dart';
@@ -400,7 +766,20 @@ void main() {
         .setMockMethodCallHandler(
       channel,
       (MethodCall methodCall) async {
-        return '42';
+        if (methodCall.method == 'getBinaryFileVersion') {
+          return '1.2.3.4';
+        } else if (methodCall.method == 'getBinaryFileMetadata') {
+          // Return mock metadata
+          return {
+            'version': '1.2.3.4',
+            'productName': 'Test Product',
+            'fileDescription': 'Test File Description',
+            'legalCopyright': '© 2025 Test Company',
+            'originalFilename': 'test.exe',
+            'companyName': 'Test Company',
+          };
+        }
+        return null;
       },
     );
   });
@@ -409,11 +788,27 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, null);
   });
+
+  test('getBinaryFileVersion', () async {
+    expect(await platform.getBinaryFileVersion('test.exe'), '1.2.3.4');
+  });
+
+  test('getBinaryFileMetadata', () async {
+    final metadata = await platform.getBinaryFileMetadata('test.exe');
+
+    expect(metadata.version, '1.2.3.4');
+    expect(metadata.productName, 'Test Product');
+    expect(metadata.fileDescription, 'Test File Description');
+    expect(metadata.legalCopyright, '© 2025 Test Company');
+    expect(metadata.originalFilename, 'test.exe');
+    expect(metadata.companyName, 'Test Company');
+  });
 }
 
 ```
 ## test/flutter_bin_test.dart
 ```dart
+import 'package:flutter_bin/flutter_bin.dart';
 import 'package:flutter_bin/flutter_bin_method_channel.dart';
 import 'package:flutter_bin/flutter_bin_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -423,18 +818,20 @@ class MockFlutterBinPlatform
     with MockPlatformInterfaceMixin
     implements FlutterBinPlatform {
   @override
-  Future<String?> getPlatformVersion() => Future.value('42');
-
-  @override
-  Future<String?> getBinaryFileVersion(String filePath) {
-    // TODO: implement getBinaryFileVersion
-    throw UnimplementedError();
+  Future<String?> getBinaryFileVersion(String filePath) async {
+    return '1.2.3.4';
   }
 
   @override
-  Future<String?> pickFileAndGetVersion() {
-    // TODO: implement pickFileAndGetVersion
-    throw UnimplementedError();
+  Future<BinaryFileMetadata> getBinaryFileMetadata(String filePath) async {
+    return BinaryFileMetadata(
+      version: '1.2.3.4',
+      productName: 'Mock Product',
+      fileDescription: 'Mock File Description',
+      legalCopyright: '© 2025 Mock Company',
+      originalFilename: 'mock.exe',
+      companyName: 'Mock Company',
+    );
   }
 }
 
@@ -443,6 +840,29 @@ void main() {
 
   test('$MethodChannelFlutterBin is the default instance', () {
     expect(initialPlatform, isInstanceOf<MethodChannelFlutterBin>());
+  });
+
+  test('getBinaryFileVersion', () async {
+    FlutterBin flutterBinPlugin = FlutterBin();
+    MockFlutterBinPlatform fakePlatform = MockFlutterBinPlatform();
+    FlutterBinPlatform.instance = fakePlatform;
+
+    expect(await flutterBinPlugin.getBinaryFileVersion('test.exe'), '1.2.3.4');
+  });
+
+  test('getBinaryFileMetadata', () async {
+    FlutterBin flutterBinPlugin = FlutterBin();
+    MockFlutterBinPlatform fakePlatform = MockFlutterBinPlatform();
+    FlutterBinPlatform.instance = fakePlatform;
+
+    final metadata = await flutterBinPlugin.getBinaryFileMetadata('test.exe');
+
+    expect(metadata.version, '1.2.3.4');
+    expect(metadata.productName, 'Mock Product');
+    expect(metadata.fileDescription, 'Mock File Description');
+    expect(metadata.legalCopyright, '© 2025 Mock Company');
+    expect(metadata.originalFilename, 'mock.exe');
+    expect(metadata.companyName, 'Mock Company');
   });
 }
 
@@ -525,6 +945,7 @@ set(flutter_bin_bundled_libraries
 
 #include <memory>
 #include <sstream>
+#include <string>
 
 // Need to link with Version.lib
 #pragma comment(lib, "Version.lib")
@@ -556,6 +977,7 @@ FlutterBinPlugin::~FlutterBinPlugin() {}
 void FlutterBinPlugin::HandleMethodCall(
     const flutter::MethodCall<flutter::EncodableValue> &method_call,
     std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+  
   if (method_call.method_name().compare("getBinaryFileVersion") == 0) {
     const auto* arguments = std::get_if<flutter::EncodableMap>(method_call.arguments());
     
@@ -575,7 +997,31 @@ void FlutterBinPlugin::HandleMethodCall(
     } else {
       result->Error("INVALID_ARGUMENT", "Arguments must be a map");
     }
-  } else {
+  } 
+  else if (method_call.method_name().compare("getBinaryFileMetadata") == 0) {
+    const auto* arguments = std::get_if<flutter::EncodableMap>(method_call.arguments());
+    
+    if (arguments) {
+      auto file_path_it = arguments->find(flutter::EncodableValue("filePath"));
+      if (file_path_it != arguments->end()) {
+        const std::string& file_path = std::get<std::string>(file_path_it->second);
+        std::map<std::string, std::string> metadata_map = GetBinaryFileMetadata(file_path);
+        
+        // Convert std::map to flutter::EncodableMap
+        flutter::EncodableMap result_map;
+        for (const auto& pair : metadata_map) {
+          result_map[flutter::EncodableValue(pair.first)] = flutter::EncodableValue(pair.second);
+        }
+        
+        result->Success(flutter::EncodableValue(result_map));
+      } else {
+        result->Error("INVALID_ARGUMENT", "Argument 'filePath' not found");
+      }
+    } else {
+      result->Error("INVALID_ARGUMENT", "Arguments must be a map");
+    }
+  }
+  else {
     result->NotImplemented();
   }
 }
@@ -628,6 +1074,120 @@ std::string FlutterBinPlugin::GetBinaryFileVersion(const std::string& file_path)
   return version_stream.str();
 }
 
+// Helper function to convert Wide String to UTF-8
+std::string WideStringToUtf8(const wchar_t* wide_str, int length = -1) {
+  if (!wide_str) return "";
+  
+  // Calculate the required buffer size
+  int size_needed = WideCharToMultiByte(CP_UTF8, 0, wide_str, length, NULL, 0, NULL, NULL);
+  if (size_needed <= 0) return "";
+
+  // Allocate the buffer and convert
+  std::string utf8_str(size_needed, 0);
+  WideCharToMultiByte(CP_UTF8, 0, wide_str, length, &utf8_str[0], size_needed, NULL, NULL);
+  
+  // If we got a null-terminated string with explicit length, remove the null terminator from the result
+  if (length == -1 && !utf8_str.empty() && utf8_str.back() == '\0') {
+    utf8_str.pop_back();
+  }
+  
+  return utf8_str;
+}
+
+// Helper to get a string value from version info
+std::string GetVersionInfoString(const std::vector<BYTE>& version_info, const std::wstring& sub_block) {
+  UINT size = 0;
+  LPVOID buffer = nullptr;
+  
+  // First try to get string with default language
+  std::wstring query = L"\\StringFileInfo\\040904B0\\" + sub_block;
+  if (VerQueryValueW(version_info.data(), query.c_str(), &buffer, &size) && size > 0 && buffer != nullptr) {
+    return WideStringToUtf8(static_cast<const wchar_t*>(buffer));
+  }
+  
+  // If that fails, try to find any available language
+  struct LANGANDCODEPAGE {
+    WORD language;
+    WORD code_page;
+  } *translate;
+  
+  UINT translate_size = 0;
+  if (!VerQueryValueW(version_info.data(), L"\\VarFileInfo\\Translation", 
+                     reinterpret_cast<LPVOID*>(&translate), &translate_size)) {
+    return "";
+  }
+  
+  size_t count = translate_size / sizeof(LANGANDCODEPAGE);
+  for (size_t i = 0; i < count; ++i) {
+    // Format the language and codepage as a string for the query
+    wchar_t sub_block_lang[50];
+    swprintf_s(sub_block_lang, L"\\StringFileInfo\\%04x%04x\\%s", 
+              translate[i].language, translate[i].code_page, sub_block.c_str());
+    
+    if (VerQueryValueW(version_info.data(), sub_block_lang, &buffer, &size) && size > 0 && buffer != nullptr) {
+      return WideStringToUtf8(static_cast<const wchar_t*>(buffer));
+    }
+  }
+  
+  return "";
+}
+
+std::map<std::string, std::string> FlutterBinPlugin::GetBinaryFileMetadata(const std::string& file_path) {
+  std::map<std::string, std::string> metadata;
+  
+  // Convert from UTF-8 to wide string
+  int size_needed = MultiByteToWideChar(CP_UTF8, 0, file_path.c_str(), -1, NULL, 0);
+  std::wstring wide_path(size_needed, 0);
+  MultiByteToWideChar(CP_UTF8, 0, file_path.c_str(), -1, &wide_path[0], size_needed);
+
+  // Check if file exists
+  DWORD file_attributes = GetFileAttributesW(wide_path.c_str());
+  if (file_attributes == INVALID_FILE_ATTRIBUTES) {
+    // File doesn't exist or is inaccessible
+    return metadata;
+  }
+
+  // Get the size of the version info
+  DWORD dummy;
+  DWORD version_info_size = GetFileVersionInfoSizeW(wide_path.c_str(), &dummy);
+  if (version_info_size == 0) {
+    // Could not get version info size
+    return metadata;
+  }
+
+  // Allocate memory for the version info
+  std::vector<BYTE> version_info(version_info_size);
+  if (!GetFileVersionInfoW(wide_path.c_str(), 0, version_info_size, version_info.data())) {
+    // Could not get version info
+    return metadata;
+  }
+
+  // Get the fixed file info for version
+  VS_FIXEDFILEINFO* fixed_file_info = nullptr;
+  UINT len = 0;
+  if (VerQueryValueW(version_info.data(), L"\\", (LPVOID*)&fixed_file_info, &len)) {
+    // Extract the version
+    DWORD major = HIWORD(fixed_file_info->dwFileVersionMS);
+    DWORD minor = LOWORD(fixed_file_info->dwFileVersionMS);
+    DWORD build = HIWORD(fixed_file_info->dwFileVersionLS);
+    DWORD revision = LOWORD(fixed_file_info->dwFileVersionLS);
+
+    // Format the version string
+    std::ostringstream version_stream;
+    version_stream << major << "." << minor << "." << build << "." << revision;
+    metadata["version"] = version_stream.str();
+  }
+
+  // Get string values from version info
+  metadata["productName"] = GetVersionInfoString(version_info, L"ProductName");
+  metadata["fileDescription"] = GetVersionInfoString(version_info, L"FileDescription");
+  metadata["legalCopyright"] = GetVersionInfoString(version_info, L"LegalCopyright");
+  metadata["originalFilename"] = GetVersionInfoString(version_info, L"OriginalFilename");
+  metadata["companyName"] = GetVersionInfoString(version_info, L"CompanyName");
+
+  return metadata;
+}
+
 }  // namespace flutter_bin
 ```
 ## windows/flutter_bin_plugin.h
@@ -637,9 +1197,11 @@ std::string FlutterBinPlugin::GetBinaryFileVersion(const std::string& file_path)
 
 #include <flutter/method_channel.h>
 #include <flutter/plugin_registrar_windows.h>
+#include <flutter/standard_method_codec.h>
 
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace flutter_bin {
 
@@ -663,6 +1225,9 @@ class FlutterBinPlugin : public flutter::Plugin {
  private:
   // Methods to handle specific platform calls
   std::string GetBinaryFileVersion(const std::string& file_path);
+  
+  // Get comprehensive metadata about a binary file
+  std::map<std::string, std::string> GetBinaryFileMetadata(const std::string& file_path);
 };
 
 }  // namespace flutter_bin
