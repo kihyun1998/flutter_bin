@@ -1,3 +1,10 @@
+## 1.1.0
+
+* Added macOS platform support:
+  * Retrieve file version information from macOS binary files
+  * Extract metadata from Info.plist files in macOS applications
+  * Support for both .app bundles and standalone binaries
+
 ## 1.0.0
 
 Initial release of the flutter_bin plugin.
