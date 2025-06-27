@@ -22,7 +22,7 @@ Add the package to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  flutter_bin: ^1.1.2
+  flutter_bin: ^1.1.3
 ```
 
 ## Usage
