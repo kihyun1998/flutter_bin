@@ -1,3 +1,8 @@
+## 1.1.2
+
+* Update:
+  * update license
+
 ## 1.1.1
 
 * Fix:

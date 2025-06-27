@@ -3,5 +3,6 @@
         "memory": "cpp",
         "sstream": "cpp",
         "utility": "cpp"
-    }
+    },
+    "cmake.sourceDirectory": "C:/flutter_bin/windows"
 }
