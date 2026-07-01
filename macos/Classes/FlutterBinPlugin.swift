@@ -25,20 +25,23 @@ public class FlutterBinPlugin: NSObject, FlutterPlugin {
     }
   }
 
-  private func getBinaryFileVersion(filePath: String) -> String? {
+  /// Loads the Info.plist for the given input path, resolving `.app` bundles to
+  /// their `Contents/Info.plist`. Returns nil if no plist can be read. Shared by
+  /// both the version and metadata lookups so the resolution + load logic lives
+  /// in one place.
+  private func loadInfoPlist(from filePath: String) -> NSDictionary? {
     let infoPlistPath = resolveInfoPlistPath(from: filePath)
-    guard let infoPlist = NSDictionary(contentsOfFile: infoPlistPath),
-          let version = infoPlist["CFBundleShortVersionString"] as? String else {
-      return nil
-    }
-    return version
+    return NSDictionary(contentsOfFile: infoPlistPath)
+  }
+
+  private func getBinaryFileVersion(filePath: String) -> String? {
+    return loadInfoPlist(from: filePath)?["CFBundleShortVersionString"] as? String
   }
 
   private func getBinaryFileMetadata(filePath: String) -> [String: String] {
     var metadata: [String: String] = [:]
 
-    let infoPlistPath = resolveInfoPlistPath(from: filePath)
-    guard let infoPlist = NSDictionary(contentsOfFile: infoPlistPath) else {
+    guard let infoPlist = loadInfoPlist(from: filePath) else {
       return metadata
     }
 
