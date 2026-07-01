@@ -2,3 +2,11 @@ CODE.md
 codemd-windows-amd64.exe
 codemd-darwin-amd64
 .codeignore
+
+# Build artifacts / tooling caches (can bloat the published archive)
+build/
+.dart_tool/
+
+# Repo-internal docs and agent tooling — not needed by package consumers
+docs/
+CLAUDE.md

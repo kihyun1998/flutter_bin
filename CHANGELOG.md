@@ -1,3 +1,30 @@
+## 2.0.0
+
+* **BREAKING**:
+  * `getBinaryFileVersion` (and the `version` metadata field) now returns a
+    semantic version (`major.minor.patch`) on all platforms. On Windows the
+    trailing revision of the PE file version is dropped
+    (e.g. `6.2.26100.8521` → `6.2.26100`).
+
+* Fix:
+  * Windows: `getBinaryFileVersion` now returns `null` (previously `false`) for
+    files without version information, matching the documented contract.
+  * Windows: a non-string `filePath` argument now returns an `INVALID_ARGUMENT`
+    error instead of crashing the plugin.
+
+* Improvements:
+  * Documented the method-channel key contract; the Dart
+    `BinaryFileMetadataJsonKey` enum is the single source of truth for the
+    metadata keys.
+  * Internal refactors: shared version-info loader (Windows) and shared
+    Info.plist loader (macOS), with no change in behavior.
+
+* Tooling:
+  * Added a Windows native unit-test harness (GoogleTest) and real macOS
+    XCTests.
+  * Added CI (GitHub Actions) running Dart analyze/test, the Windows gtest
+    suite, and the macOS XCTest suite on every push and pull request.
+
 ## 1.1.3
 
 * Update:

@@ -22,7 +22,7 @@ Add the package to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  flutter_bin: ^1.1.3
+  flutter_bin: ^2.0.0
 ```
 
 ## Usage
@@ -97,7 +97,7 @@ The plugin extracts the following metadata from binary files:
 
 | Field | Description | Windows Source | macOS Source |
 |-------|-------------|----------------|--------------|
-| version | File version (e.g., 1.2.3.4) | FileVersion | CFBundleShortVersionString |
+| version | Semantic version (e.g., 1.2.3) | FileVersion (major.minor.build) | CFBundleShortVersionString |
 | productName | The product name | ProductName | CFBundleName |
 | fileDescription | Description of the file | FileDescription | CFBundleGetInfoString |
 | legalCopyright | Copyright information | LegalCopyright | NSHumanReadableCopyright |
