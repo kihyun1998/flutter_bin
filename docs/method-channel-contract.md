@@ -8,7 +8,7 @@ that the Dart, Windows (C++), and macOS (Swift) sides must all agree on.
 
 | Method | Argument | Result |
 | --- | --- | --- |
-| `getBinaryFileVersion` | `filePath` (String, required) | version `String`, or `null` when unavailable |
+| `getBinaryFileVersion` | `filePath` (String, required) | semantic version `String` (`major.minor.patch`, e.g. `1.2.3`), or `null` when unavailable |
 | `getBinaryFileMetadata` | `filePath` (String, required) | `Map<String, String>` keyed by the metadata keys below (empty map when unavailable) |
 
 A missing or non-string `filePath` argument is answered with an
@@ -38,5 +38,10 @@ together**. See [ADR-0002](adr/0002-dart-enum-is-canonical-channel-key-source.md
   (`MetadataKeysMatchTheChannelContract`) asserts the returned key set.
 - macOS: `example/macos/RunnerTests/RunnerTests.swift` asserts the mapped fields.
 
-> Note: the *value* formats are not yet fully unified across platforms (e.g. the
-> version string format differs). That is tracked separately in issue #5.
+### Version format
+
+The `version` value is a semantic version (`major.minor.patch`) on every platform.
+Windows derives it from the PE file version `major.minor.build.revision`, dropping
+the trailing revision; macOS returns `CFBundleShortVersionString` as-is (already a
+short/semantic version by Apple convention). See
+[ADR-0003](adr/0003-version-string-is-semver.md).
