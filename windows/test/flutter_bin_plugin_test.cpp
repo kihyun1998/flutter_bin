@@ -5,6 +5,7 @@
 #include <windows.h>
 
 #include <memory>
+#include <regex>
 #include <string>
 #include <variant>
 
@@ -125,6 +126,32 @@ TEST(FlutterBinPlugin, UnknownMethodIsNotImplemented) {
 
   EXPECT_FALSE(outcome.succeeded);
   EXPECT_FALSE(outcome.errored);
+}
+
+// Characterization (success path): a real system DLL yields a 4-part numeric
+// version and stable, locale-independent metadata. This pins the loader and
+// formatter behavior before the #2 refactor extracts LoadVersionInfo /
+// FormatFixedVersion, so an accidental regression there can't slip through.
+TEST(FlutterBinPlugin, RealSystemDllHasVersionAndMetadata) {
+  FlutterBinPlugin plugin;
+  const std::string kDll = "C:/Windows/System32/kernel32.dll";
+  const std::regex kFourPartVersion(R"(^\d+\.\d+\.\d+\.\d+$)");
+
+  auto v = Invoke(plugin, "getBinaryFileVersion", FilePathArgs(kDll));
+  ASSERT_TRUE(std::holds_alternative<std::string>(v.value));
+  EXPECT_TRUE(std::regex_match(std::get<std::string>(v.value), kFourPartVersion));
+
+  auto m = Invoke(plugin, "getBinaryFileMetadata", FilePathArgs(kDll));
+  ASSERT_TRUE(std::holds_alternative<EncodableMap>(m.value));
+  const auto& map = std::get<EncodableMap>(m.value);
+  auto field = [&](const char* key) -> std::string {
+    auto it = map.find(EncodableValue(key));
+    return it == map.end() ? std::string() : std::get<std::string>(it->second);
+  };
+
+  EXPECT_TRUE(std::regex_match(field("version"), kFourPartVersion));
+  EXPECT_EQ(field("companyName"), "Microsoft Corporation");
+  EXPECT_EQ(field("originalFilename"), "kernel32");
 }
 
 }  // namespace test
