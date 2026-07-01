@@ -49,11 +49,15 @@ jobs:
       - name: Precache Windows engine artifacts
         run: flutter precache --windows
 
+      # Put cl/link on PATH so CMake uses MSVC regardless of the runner's VS layout.
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Configure
-        run: cmake -S windows/test -B build/win-test -G "Visual Studio 17 2022" -A x64
+        run: cmake -S windows/test -B build/win-test -G Ninja -DCMAKE_BUILD_TYPE=Debug
 
       - name: Build
-        run: cmake --build build/win-test --config Debug
+        run: cmake --build build/win-test
 
       - name: Test
-        run: ctest --test-dir build/win-test -C Debug --output-on-failure
+        run: ctest --test-dir build/win-test --output-on-failure
