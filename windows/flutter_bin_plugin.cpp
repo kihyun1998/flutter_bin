@@ -171,12 +171,13 @@ std::optional<std::vector<BYTE>> LoadVersionInfo(const std::string& file_path) {
   return version_info;
 }
 
-// Formats the fixed file info as "major.minor.build.revision".
+// Formats the fixed file info as a semantic version "major.minor.patch".
+// The Windows file version is major.minor.build.revision; the trailing revision
+// is dropped so the value matches semver across platforms (see #5 / ADR-0003).
 std::string FormatFixedVersion(const VS_FIXEDFILEINFO& info) {
   std::ostringstream stream;
   stream << HIWORD(info.dwFileVersionMS) << "." << LOWORD(info.dwFileVersionMS)
-         << "." << HIWORD(info.dwFileVersionLS) << "."
-         << LOWORD(info.dwFileVersionLS);
+         << "." << HIWORD(info.dwFileVersionLS);
   return stream.str();
 }
 
