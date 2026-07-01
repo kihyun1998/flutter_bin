@@ -32,3 +32,28 @@ jobs:
 
       - name: Test
         run: flutter test
+
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      # The gtest harness links the Flutter Windows engine + client wrapper.
+      - name: Precache Windows engine artifacts
+        run: flutter precache --windows
+
+      - name: Configure
+        run: cmake -S windows/test -B build/win-test -G "Visual Studio 17 2022" -A x64
+
+      - name: Build
+        run: cmake --build build/win-test --config Debug
+
+      - name: Test
+        run: ctest --test-dir build/win-test -C Debug --output-on-failure
