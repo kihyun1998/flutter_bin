@@ -41,52 +41,78 @@ FlutterBinPlugin::FlutterBinPlugin() {}
 
 FlutterBinPlugin::~FlutterBinPlugin() {}
 
+namespace {
+
+// Extracts the required string "filePath" argument from a method call. On
+// success, writes it to *file_path and returns true. On any failure (arguments
+// not a map, key missing, or value not a string) sends an INVALID_ARGUMENT
+// error via *result and returns false. Using std::get_if (not std::get) keeps
+// a non-string value from throwing std::bad_variant_access and crashing.
+bool TryGetFilePath(
+    const flutter::MethodCall<flutter::EncodableValue>& method_call,
+    flutter::MethodResult<flutter::EncodableValue>* result,
+    std::string* file_path) {
+  const auto* arguments =
+      std::get_if<flutter::EncodableMap>(method_call.arguments());
+  if (!arguments) {
+    result->Error("INVALID_ARGUMENT", "Arguments must be a map");
+    return false;
+  }
+
+  auto it = arguments->find(flutter::EncodableValue("filePath"));
+  if (it == arguments->end()) {
+    result->Error("INVALID_ARGUMENT", "Argument 'filePath' not found");
+    return false;
+  }
+
+  const auto* value = std::get_if<std::string>(&it->second);
+  if (!value) {
+    result->Error("INVALID_ARGUMENT", "Argument 'filePath' must be a string");
+    return false;
+  }
+
+  *file_path = *value;
+  return true;
+}
+
+}  // namespace
+
 void FlutterBinPlugin::HandleMethodCall(
     const flutter::MethodCall<flutter::EncodableValue> &method_call,
     std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
-  
+
   if (method_call.method_name().compare("getBinaryFileVersion") == 0) {
-    const auto* arguments = std::get_if<flutter::EncodableMap>(method_call.arguments());
-    
-    if (arguments) {
-      auto file_path_it = arguments->find(flutter::EncodableValue("filePath"));
-      if (file_path_it != arguments->end()) {
-        const std::string& file_path = std::get<std::string>(file_path_it->second);
-        std::string version = GetBinaryFileVersion(file_path);
-        if (!version.empty()) {
-          result->Success(flutter::EncodableValue(version));
-        } else {
-          result->Success(nullptr);
-        }
-      } else {
-        result->Error("INVALID_ARGUMENT", "Argument 'filePath' not found");
-      }
-    } else {
-      result->Error("INVALID_ARGUMENT", "Arguments must be a map");
+    std::string file_path;
+    if (!TryGetFilePath(method_call, result.get(), &file_path)) {
+      return;
     }
-  } 
+
+    std::string version = GetBinaryFileVersion(file_path);
+    if (!version.empty()) {
+      result->Success(flutter::EncodableValue(version));
+    } else {
+      // No-arg Success() sends a real null; Success(nullptr) would
+      // silently decode to EncodableValue(false) (a bool) instead.
+      result->Success();
+    }
+  }
   else if (method_call.method_name().compare("getBinaryFileMetadata") == 0) {
-    const auto* arguments = std::get_if<flutter::EncodableMap>(method_call.arguments());
-    
-    if (arguments) {
-      auto file_path_it = arguments->find(flutter::EncodableValue("filePath"));
-      if (file_path_it != arguments->end()) {
-        const std::string& file_path = std::get<std::string>(file_path_it->second);
-        std::map<std::string, std::string> metadata_map = GetBinaryFileMetadata(file_path);
-        
-        // Convert std::map to flutter::EncodableMap
-        flutter::EncodableMap result_map;
-        for (const auto& pair : metadata_map) {
-          result_map[flutter::EncodableValue(pair.first)] = flutter::EncodableValue(pair.second);
-        }
-        
-        result->Success(flutter::EncodableValue(result_map));
-      } else {
-        result->Error("INVALID_ARGUMENT", "Argument 'filePath' not found");
-      }
-    } else {
-      result->Error("INVALID_ARGUMENT", "Arguments must be a map");
+    std::string file_path;
+    if (!TryGetFilePath(method_call, result.get(), &file_path)) {
+      return;
     }
+
+    std::map<std::string, std::string> metadata_map =
+        GetBinaryFileMetadata(file_path);
+
+    // Convert std::map to flutter::EncodableMap
+    flutter::EncodableMap result_map;
+    for (const auto& pair : metadata_map) {
+      result_map[flutter::EncodableValue(pair.first)] =
+          flutter::EncodableValue(pair.second);
+    }
+
+    result->Success(flutter::EncodableValue(result_map));
   }
   else {
     result->NotImplemented();
