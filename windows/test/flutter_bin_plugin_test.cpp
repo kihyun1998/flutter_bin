@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <regex>
+#include <set>
 #include <string>
 #include <variant>
 
@@ -152,6 +153,27 @@ TEST(FlutterBinPlugin, RealSystemDllHasVersionAndMetadata) {
   EXPECT_TRUE(std::regex_match(field("version"), kFourPartVersion));
   EXPECT_EQ(field("companyName"), "Microsoft Corporation");
   EXPECT_EQ(field("originalFilename"), "kernel32");
+}
+
+// Issue #4: the metadata map must carry exactly the canonical channel keys.
+// This is the Windows half of the cross-language key contract whose source of
+// truth is the Dart BinaryFileMetadataJsonKey enum (see the Dart test
+// test/models/binary_file_metadata_test.dart and docs/method-channel-contract.md).
+TEST(FlutterBinPlugin, MetadataKeysMatchTheChannelContract) {
+  FlutterBinPlugin plugin;
+  auto m = Invoke(plugin, "getBinaryFileMetadata",
+                  FilePathArgs("C:/Windows/System32/kernel32.dll"));
+  ASSERT_TRUE(std::holds_alternative<EncodableMap>(m.value));
+
+  std::set<std::string> keys;
+  for (const auto& kv : std::get<EncodableMap>(m.value)) {
+    keys.insert(std::get<std::string>(kv.first));
+  }
+
+  const std::set<std::string> expected = {
+      "version",        "productName",      "fileDescription",
+      "legalCopyright", "originalFilename", "companyName"};
+  EXPECT_EQ(keys, expected);
 }
 
 }  // namespace test
