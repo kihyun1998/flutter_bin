@@ -32,7 +32,7 @@ dependencies:
 ```dart
 import 'package:flutter_bin/flutter_bin.dart';
 
-// Create an instance of the plugin
+// Create an instance
 final flutterBin = FlutterBin();
 
 // Get the version information
@@ -49,7 +49,7 @@ print('macOS app version: $macVersion');
 ```dart
 import 'package:flutter_bin/flutter_bin.dart';
 
-// Create an instance of the plugin
+// Create an instance
 final flutterBin = FlutterBin();
 
 // Get comprehensive metadata (Windows)
@@ -73,7 +73,7 @@ print('Company name: ${metadata.companyName}');
 import 'package:flutter_bin/flutter_bin.dart';
 import 'package:file_picker/file_picker.dart';
 
-// Create an instance of the plugin
+// Create an instance
 final flutterBin = FlutterBin();
 
 // Let the user select a file
@@ -93,7 +93,7 @@ if (result != null && result.files.single.path != null) {
 
 ## Metadata Fields
 
-The plugin extracts the following metadata from binary files:
+flutter_bin extracts the following metadata from binary files:
 
 | Field | Description | Windows Source | macOS Source |
 |-------|-------------|----------------|--------------|
