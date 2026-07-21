@@ -1,8 +1,8 @@
-# Flutter Binary File Metadata Plugin
+# flutter_bin — Binary File Metadata
 
 [![pub package](https://img.shields.io/pub/v/flutter_bin.svg)](https://pub.dev/packages/flutter_bin)
 
-A Flutter plugin to retrieve metadata from binary files (executable files) on desktop platforms. Currently supports Windows and macOS platforms.
+A pure-Dart package to retrieve metadata from binary files (executable files) on desktop platforms. Supports Windows and macOS, and works in both Flutter and plain Dart projects. Windows reads the PE version resource via `dart:ffi`; macOS parses the app bundle's `Info.plist`. Calls on unsupported platforms throw `UnsupportedError`.
 
 ## Features
 
@@ -22,7 +22,7 @@ Add the package to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  flutter_bin: ^2.0.0
+  flutter_bin: ^3.0.0
 ```
 
 ## Usage

@@ -1,12 +1,12 @@
 import 'package:flutter_bin/flutter_bin.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 
 void main() {
-  // The canonical method-channel metadata key contract. The native
-  // implementations (Windows C++, macOS Swift) must emit exactly these keys,
-  // and `BinaryFileMetadataJsonKey` is the single source of truth for them.
-  // This literal list is written independently of the enum so a drift on
-  // either side fails the test rather than passing by construction.
+  // The canonical metadata key contract. The pure-Dart readers (Windows FFI,
+  // macOS Info.plist) build their maps with exactly these keys, and
+  // `BinaryFileMetadataJsonKey` is the single source of truth for them. This
+  // literal list is written independently of the enum so a drift on either
+  // side fails the test rather than passing by construction.
   const canonicalKeys = <String>[
     'version',
     'productName',

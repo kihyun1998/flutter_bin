@@ -5,14 +5,22 @@ on:
     branches: [main]
   pull_request:
 
-# Pinned so CI does not drift with the runner's default Flutter.
+# Pinned so CI does not drift with the runner's default Flutter/Dart.
 env:
   FLUTTER_VERSION: "3.41.9"
 
 jobs:
-  dart:
-    name: Dart
-    runs-on: ubuntu-latest
+  # flutter_bin is a pure-Dart package, so the tests run with `dart test` on
+  # each OS. Each runner exercises its own platform code: the Windows job runs
+  # the `@TestOn('windows')` FFI tests, the macOS job runs the `@TestOn('mac-os')`
+  # Info.plist tests, and all three run the platform-independent tests.
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v5
 
@@ -22,23 +30,33 @@ jobs:
           channel: stable
           cache: true
 
-      - run: flutter --version
+      - run: dart --version
 
       - name: Install dependencies
-        run: flutter pub get
+        run: dart pub get
 
       - name: Format check
         run: dart format --output=none --set-exit-if-changed .
 
       - name: Analyze
-        run: flutter analyze
+        run: dart analyze
 
       - name: Test
-        run: flutter test
+        run: dart test
 
-  windows:
-    name: Windows
-    runs-on: windows-latest
+  # The example is still a Flutter app; make sure it builds against the
+  # pure-Dart package on the desktop platforms it targets.
+  example:
+    name: Example build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            build: flutter build windows
+          - os: macos-latest
+            build: flutter build macos --debug
     steps:
       - uses: actions/checkout@v5
 
@@ -48,46 +66,10 @@ jobs:
           channel: stable
           cache: true
 
-      # The gtest harness links the Flutter Windows engine + client wrapper.
-      - name: Precache Windows engine artifacts
-        run: flutter precache --windows
-
-      # Put cl/link on PATH so CMake uses MSVC regardless of the runner's VS layout.
-      - name: Set up MSVC
-        uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Configure
-        run: cmake -S windows/test -B build/win-test -G Ninja -DCMAKE_BUILD_TYPE=Debug
-
-      - name: Build
-        run: cmake --build build/win-test
-
-      - name: Test
-        run: ctest --test-dir build/win-test --output-on-failure
-
-  macos:
-    name: macOS
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
-
-      # Must build first, or the generated Flutter/ephemeral/*.xcfilelist files
-      # are missing and the Xcode build fails.
-      - name: Build macOS app
-        run: flutter build macos --debug
+      - name: Install example dependencies
+        run: flutter pub get
         working-directory: example
 
-      - name: Run XCTest
+      - name: Build example
+        run: ${{ matrix.build }}
         working-directory: example
-        run: |
-          xcodebuild test \
-            -workspace macos/Runner.xcworkspace \
-            -scheme Runner \
-            -destination 'platform=macOS' \
-            CODE_SIGNING_ALLOWED=NO
