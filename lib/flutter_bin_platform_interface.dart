@@ -1,7 +1,11 @@
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
-import 'flutter_bin_method_channel.dart';
 import 'models/binary_file_metadata.dart';
+// Selects the default implementation without statically linking `dart:ffi` on
+// platforms that can't compile it (web): the `_io` variant is used only when
+// `dart:io` is available, i.e. on native platforms.
+import 'src/default_platform.dart'
+    if (dart.library.io) 'src/default_platform_io.dart';
 
 abstract class FlutterBinPlatform extends PlatformInterface {
   /// Constructs a FlutterBinPlatform.
@@ -9,11 +13,14 @@ abstract class FlutterBinPlatform extends PlatformInterface {
 
   static final Object _token = Object();
 
-  static FlutterBinPlatform _instance = MethodChannelFlutterBin();
+  static FlutterBinPlatform _instance = createDefaultPlatform();
 
   /// The default instance of [FlutterBinPlatform] to use.
   ///
-  /// Defaults to [MethodChannelFlutterBin].
+  /// On native platforms this is the pure-Dart FFI implementation on Windows
+  /// and the method channel elsewhere; the selection lives in
+  /// `createDefaultPlatform` (conditionally imported so web never links
+  /// `dart:ffi`).
   static FlutterBinPlatform get instance => _instance;
 
   /// Platform-specific implementations should set this with their own
