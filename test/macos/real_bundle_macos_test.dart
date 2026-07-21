@@ -4,7 +4,7 @@ library;
 import 'dart:io';
 
 import 'package:flutter_bin/src/macos/flutter_bin_macos.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 
 /// Smoke test against a real system `.app` bundle. Runs only on macOS (a no-op
 /// on the Windows/Linux CI jobs), so it exercises the real binary Info.plist a

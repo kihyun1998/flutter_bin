@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_bin/src/macos/flutter_bin_macos.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 
 void main() {
   // Builds a throwaway `App.app/Contents/Info.plist` bundle from a fixture and

@@ -1,3 +1,26 @@
+## 3.0.0
+
+* **BREAKING**:
+  * `flutter_bin` is now a **pure-Dart package**, not a Flutter plugin. It no
+    longer depends on Flutter, `plugin_platform_interface`, or a method channel,
+    and ships no native (C++/Swift) code. Windows metadata is read via `dart:ffi`
+    calls into the Win32 version APIs (`version.dll`), and macOS reads the
+    bundle's `Info.plist` in pure Dart (binary + XML).
+  * Unsupported platforms (web, Linux, mobile) now throw `UnsupportedError`
+    instead of a `MissingPluginException`.
+  * The public API (`FlutterBin`, `BinaryFileMetadata`) is unchanged, so callers
+    that only use the public API upgrade without code changes. Because the
+    package no longer depends on Flutter, it can also be used from plain Dart.
+
+* Dependencies:
+  * Added `ffi`, `plist_parser`, and `path`; removed `flutter` and
+    `plugin_platform_interface`.
+
+* Tooling:
+  * Tests migrated from `flutter_test` to `package:test`; native GoogleTest /
+    XCTest harnesses removed. CI now runs `dart test` on Windows, macOS, and
+    Linux, and builds the example app on Windows and macOS.
+
 ## 2.0.0
 
 * **BREAKING**:

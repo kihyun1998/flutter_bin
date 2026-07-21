@@ -4,7 +4,7 @@ library;
 import 'dart:io';
 
 import 'package:flutter_bin/src/windows/flutter_bin_ffi_windows.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 
 /// End-to-end checks that the FFI path actually reads a real PE version
 /// resource. These run only on Windows (the `@TestOn('windows')` annotation

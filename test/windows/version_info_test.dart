@@ -1,5 +1,5 @@
 import 'package:flutter_bin/src/windows/version_info.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 
 void main() {
   group('formatFixedVersion', () {

@@ -1,10 +1,8 @@
-import '../flutter_bin_method_channel.dart';
 import '../flutter_bin_platform_interface.dart';
+import 'unsupported_platform.dart';
 
-/// Fallback used on platforms without `dart:io` / `dart:ffi` (e.g. web).
-///
-/// This variant is selected when `dart.library.io` is unavailable, so the FFI
-/// implementation is never statically linked into the compilation graph. That
-/// keeps a consuming app that also targets web compilable, even though this
-/// package only actually runs on desktop.
-FlutterBinPlatform createDefaultPlatform() => MethodChannelFlutterBin();
+/// Selected when `dart:io` is unavailable (web). flutter_bin has no web
+/// implementation, so calls throw [UnsupportedError]. Keeping this variant off
+/// the `dart:io`/`dart:ffi` code path is what lets a web-targeting consumer of
+/// this package still compile.
+FlutterBinPlatform createDefaultPlatform() => UnsupportedFlutterBin();
