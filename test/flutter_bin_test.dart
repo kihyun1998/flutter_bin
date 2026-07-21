@@ -1,6 +1,9 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter_bin/flutter_bin.dart';
 import 'package:flutter_bin/flutter_bin_method_channel.dart';
 import 'package:flutter_bin/flutter_bin_platform_interface.dart';
+import 'package:flutter_bin/src/windows/flutter_bin_ffi_windows.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
@@ -28,8 +31,12 @@ class MockFlutterBinPlatform
 void main() {
   final FlutterBinPlatform initialPlatform = FlutterBinPlatform.instance;
 
-  test('$MethodChannelFlutterBin is the default instance', () {
-    expect(initialPlatform, isInstanceOf<MethodChannelFlutterBin>());
+  test('default instance is platform-appropriate', () {
+    if (Platform.isWindows) {
+      expect(initialPlatform, isInstanceOf<FlutterBinFfiWindows>());
+    } else {
+      expect(initialPlatform, isInstanceOf<MethodChannelFlutterBin>());
+    }
   });
 
   test('getBinaryFileVersion', () async {
