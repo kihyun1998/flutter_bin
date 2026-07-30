@@ -1,5 +1,5 @@
 name: flutter_bin
-description: "A pure-Dart package to retrieve metadata (version, product name, and more) from binary files on desktop platforms. Supports Windows and macOS."
+description: "A pure-Dart package to retrieve metadata (version, product name, and more) from binary files on desktop platforms. Supports Windows and macOS, and can read the PE version resource straight out of the image."
 version: 3.1.0
 homepage: https://github.com/kihyun1998/flutter_bin
 repository: https://github.com/kihyun1998/flutter_bin

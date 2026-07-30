@@ -1,6 +1,17 @@
 # flutter_bin_example
 
-Demonstrates how to use the flutter_bin plugin.
+Demonstrates how to use the flutter_bin package.
+
+Pick a binary with **Select Binary File**, then:
+
+- **Get Version** / **Get Full Metadata** — the OS view, via
+  `getBinaryFileVersion` / `getBinaryFileMetadata`.
+- **Read PE Image View** — the image view, via `readPeVersionResources`. Lists
+  every version resource the file carries with every key and value, marks the leaf
+  the singular `readPeVersionResource` selects, and shows what
+  `toBinaryFileMetadata()` maps it to. The first rows put `originalFilename` from
+  both views side by side, which is where they disagree — see the package README's
+  "Two Views of a Windows Binary".
 
 ## Getting Started
 

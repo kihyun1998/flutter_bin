@@ -105,7 +105,9 @@ class _BinaryMetadataScreenState extends State<BinaryMetadataScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Binary Metadata')),
-      body: Padding(
+      // The image view can list many keys across several resources, so the whole
+      // report scrolls rather than clipping.
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -171,6 +173,7 @@ class _BinaryMetadataScreenState extends State<BinaryMetadataScreen> {
   }
 
   Widget _buildPeTable() {
+    final selected = _peSelected;
     return Table(
       columnWidths: const {0: IntrinsicColumnWidth()},
       border: TableBorder.all(color: Colors.grey),
@@ -178,28 +181,65 @@ class _BinaryMetadataScreenState extends State<BinaryMetadataScreen> {
         // Where the two views disagree: the OS follows MUI satellites (and reads
         // nothing at all when the resource entry is name-stored), the image view
         // reports what the binary carries.
+        _buildSectionRow('The same field, both views'),
         _buildRow(
             'originalFilename (OS view)',
             _osOriginalFilename.isEmpty
                 ? '(nothing read)'
                 : _osOriginalFilename),
         _buildRow('originalFilename (image view)',
-            _peSelected?.value('OriginalFilename') ?? 'N/A'),
+            selected?.value('OriginalFilename') ?? ''),
+
+        if (selected != null) ...[
+          // What a caller reusing code written against getBinaryFileMetadata
+          // would see if it fed the image view through toBinaryFileMetadata().
+          _buildSectionRow('Selected resource, mapped to BinaryFileMetadata'),
+          ..._buildMappedRows(selected.toBinaryFileMetadata()),
+        ],
+
         for (final resource in _peResources) ...[
           // '#1' for the conventional numeric entry, a name string otherwise —
           // the latter is what the OS view cannot find. The selected one is what
           // the singular readPeVersionResource returns.
-          _buildRow(
-            'Resource / Language',
-            '${resource.resourceName} / ${resource.languageId}'
-                '${resource == _peSelected ? '  (selected)' : ''}',
+          _buildSectionRow(
+            'Resource ${resource.resourceName}, language ${resource.languageId}'
+            '${resource == selected ? '  —  selected' : ''}',
           ),
-          _buildRow('  File / Product Version',
-              '${resource.fixedFileVersion}  /  ${resource.fixedProductVersion}'),
-          for (final table in resource.stringTables)
-            _buildRow('  ${table.languageCodePage}',
-                '${table.values.length} keys: ${table.values.keys.join(', ')}'),
+          _buildRow('File Version', resource.fixedFileVersion),
+          _buildRow('Product Version', resource.fixedProductVersion),
+          for (final table in resource.stringTables) ...[
+            _buildSectionRow(
+              'StringFileInfo \\${table.languageCodePage}'
+              '  —  ${table.values.length} keys',
+            ),
+            for (final entry in table.values.entries)
+              _buildRow(entry.key, entry.value),
+          ],
         ],
+      ],
+    );
+  }
+
+  List<TableRow> _buildMappedRows(BinaryFileMetadata metadata) => [
+        _buildRow('version', metadata.version),
+        _buildRow('productName', metadata.productName),
+        _buildRow('companyName', metadata.companyName),
+        _buildRow('originalFilename', metadata.originalFilename),
+        _buildRow('fileDescription', metadata.fileDescription),
+        _buildRow('legalCopyright', metadata.legalCopyright),
+      ];
+
+  /// A full-width heading between groups of rows.
+  TableRow _buildSectionRow(String title) {
+    return TableRow(
+      decoration: BoxDecoration(color: Colors.grey.shade200),
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child:
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ),
+        const SizedBox.shrink(),
       ],
     );
   }
@@ -212,7 +252,7 @@ class _BinaryMetadataScreenState extends State<BinaryMetadataScreen> {
       ),
       Padding(
         padding: const EdgeInsets.all(8.0),
-        child: Text(value.isNotEmpty ? value : 'N/A'),
+        child: SelectableText(value.isNotEmpty ? value : 'N/A'),
       ),
     ]);
   }
