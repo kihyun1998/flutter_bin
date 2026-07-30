@@ -31,8 +31,10 @@ class _BinaryMetadataScreenState extends State<BinaryMetadataScreen> {
   String? _filePath;
   String _version = '';
   BinaryFileMetadata? _metadata;
-  PeVersionResource? _peResource;
+  List<PeVersionResource> _peResources = const [];
+  PeVersionResource? _peSelected;
   String _peStatus = '';
+  String _osOriginalFilename = '';
 
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles();
@@ -41,8 +43,10 @@ class _BinaryMetadataScreenState extends State<BinaryMetadataScreen> {
         _filePath = result.files.single.path!;
         _version = '';
         _metadata = null;
-        _peResource = null;
+        _peResources = const [];
+        _peSelected = null;
         _peStatus = '';
+        _osOriginalFilename = '';
       });
     }
   }
@@ -81,16 +85,19 @@ class _BinaryMetadataScreenState extends State<BinaryMetadataScreen> {
   }
 
   /// The image view: parses the PE file itself, so it also reads binaries whose
-  /// version resource the OS cannot find. Values can differ from the OS view for
-  /// MUI-based binaries — see the README.
+  /// version resource the OS cannot find. Reads the OS view alongside it, since
+  /// the interesting part is where the two disagree — see the README.
   Future<void> _getPeImageView() async {
     if (_filePath == null) return;
-    final resource = await readPeVersionResource(_filePath!);
+    final resources = await readPeVersionResources(_filePath!);
+    final osView = await _plugin.getBinaryFileMetadata(_filePath!);
     setState(() {
-      _peResource = resource;
-      _peStatus = resource == null
+      _peResources = resources;
+      _peSelected = selectPeVersionResource(resources);
+      _osOriginalFilename = osView.originalFilename;
+      _peStatus = resources.isEmpty
           ? 'Not a PE image, or no version resource'
-          : 'Read from the image';
+          : '${resources.length} version resource(s) in the image';
     });
   }
 
@@ -98,7 +105,9 @@ class _BinaryMetadataScreenState extends State<BinaryMetadataScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Binary Metadata')),
-      body: Padding(
+      // The image view can list many keys across several resources, so the whole
+      // report scrolls rather than clipping.
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -141,7 +150,7 @@ class _BinaryMetadataScreenState extends State<BinaryMetadataScreen> {
               const SizedBox(height: 24),
               Text('PE image view: $_peStatus',
                   style: const TextStyle(fontWeight: FontWeight.bold)),
-              if (_peResource != null) _buildPeTable(_peResource!),
+              if (_peResources.isNotEmpty) _buildPeTable(),
             ],
           ],
         ),
@@ -163,20 +172,74 @@ class _BinaryMetadataScreenState extends State<BinaryMetadataScreen> {
     );
   }
 
-  Widget _buildPeTable(PeVersionResource resource) {
+  Widget _buildPeTable() {
+    final selected = _peSelected;
     return Table(
       columnWidths: const {0: IntrinsicColumnWidth()},
       border: TableBorder.all(color: Colors.grey),
       children: [
-        // '#1' for the conventional numeric entry, a name string otherwise —
-        // the latter is what the OS view cannot find.
-        _buildRow('Resource Name', resource.resourceName),
-        _buildRow('Language Id', '${resource.languageId}'),
-        _buildRow('File Version', resource.fixedFileVersion),
-        _buildRow('Product Version', resource.fixedProductVersion),
-        for (final table in resource.stringTables)
-          _buildRow(table.languageCodePage,
-              '${table.values.length} keys: ${table.values.keys.join(', ')}'),
+        // Where the two views disagree: the OS follows MUI satellites (and reads
+        // nothing at all when the resource entry is name-stored), the image view
+        // reports what the binary carries.
+        _buildSectionRow('The same field, both views'),
+        _buildRow(
+            'originalFilename (OS view)',
+            _osOriginalFilename.isEmpty
+                ? '(nothing read)'
+                : _osOriginalFilename),
+        _buildRow('originalFilename (image view)',
+            selected?.value('OriginalFilename') ?? ''),
+
+        if (selected != null) ...[
+          // What a caller reusing code written against getBinaryFileMetadata
+          // would see if it fed the image view through toBinaryFileMetadata().
+          _buildSectionRow('Selected resource, mapped to BinaryFileMetadata'),
+          ..._buildMappedRows(selected.toBinaryFileMetadata()),
+        ],
+
+        for (final resource in _peResources) ...[
+          // '#1' for the conventional numeric entry, a name string otherwise —
+          // the latter is what the OS view cannot find. The selected one is what
+          // the singular readPeVersionResource returns.
+          _buildSectionRow(
+            'Resource ${resource.resourceName}, language ${resource.languageId}'
+            '${resource == selected ? '  —  selected' : ''}',
+          ),
+          _buildRow('File Version', resource.fixedFileVersion),
+          _buildRow('Product Version', resource.fixedProductVersion),
+          for (final table in resource.stringTables) ...[
+            _buildSectionRow(
+              'StringFileInfo \\${table.languageCodePage}'
+              '  —  ${table.values.length} keys',
+            ),
+            for (final entry in table.values.entries)
+              _buildRow(entry.key, entry.value),
+          ],
+        ],
+      ],
+    );
+  }
+
+  List<TableRow> _buildMappedRows(BinaryFileMetadata metadata) => [
+        _buildRow('version', metadata.version),
+        _buildRow('productName', metadata.productName),
+        _buildRow('companyName', metadata.companyName),
+        _buildRow('originalFilename', metadata.originalFilename),
+        _buildRow('fileDescription', metadata.fileDescription),
+        _buildRow('legalCopyright', metadata.legalCopyright),
+      ];
+
+  /// A full-width heading between groups of rows.
+  TableRow _buildSectionRow(String title) {
+    return TableRow(
+      decoration: BoxDecoration(color: Colors.grey.shade200),
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child:
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ),
+        const SizedBox.shrink(),
       ],
     );
   }
@@ -189,7 +252,7 @@ class _BinaryMetadataScreenState extends State<BinaryMetadataScreen> {
       ),
       Padding(
         padding: const EdgeInsets.all(8.0),
-        child: Text(value.isNotEmpty ? value : 'N/A'),
+        child: SelectableText(value.isNotEmpty ? value : 'N/A'),
       ),
     ]);
   }

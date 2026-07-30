@@ -1,3 +1,44 @@
+## 3.1.0
+
+* Added the **PE image view**, a second way to read a Windows binary's version
+  resource, in a new entry point `package:flutter_bin/pe.dart`:
+  * `readPeVersionResource(path)` / `parsePeVersionResource(bytes)` return the
+    version resource embedded in a PE image as a `PeVersionResource` — resource
+    name, language id, four-part file and product versions, and every
+    `StringFileInfo` table with every key it holds (not just the five strings
+    `BinaryFileMetadata` maps). `value(key)` reads a single key, and
+    `toBinaryFileMetadata()` maps onto the existing model so validation code
+    written against `getBinaryFileMetadata` can be reused.
+  * `readPeVersionResources` / `parsePeVersionResources` return every
+    `RT_VERSION` leaf an image carries — one per language, and one per entry name
+    — in resource-directory order. `selectPeVersionResource` exposes the rule the
+    singular calls use: prefer the numeric id `1`, else the first leaf.
+  * This reads binaries the Win32 version APIs cannot see at all: images whose
+    `RT_VERSION` resource is stored under a **name string** instead of the
+    numeric id `1`, which some `windres` builds emit (FileZilla 3.66.5, for
+    example). `GetFileVersionInfoSizeW` returns 0 for those, so Explorer,
+    PowerShell and `getBinaryFileMetadata` all report no version info while the
+    data sits intact in the file.
+
+* Existing APIs are unchanged. `getBinaryFileVersion` / `getBinaryFileMetadata`
+  and `BinaryFileMetadata` behave exactly as in 3.0.0, and the image view is
+  never substituted for them:
+  * The two answer different questions. The OS view follows MUI satellite
+    resources and is locale dependent; the image view reports what the binary
+    itself carries. `C:\Windows\System32\mstsc.exe` reports `originalFilename`
+    as `mstsc.exe.mui` through the OS view and `mstsc.exe` through the image
+    view — both correct for their own question, so which one is acceptable stays
+    the caller's decision. See the README's "Two Views of a Windows Binary".
+
+* Implementation notes:
+  * Pure Dart (`dart:io` + `dart:typed_data`), no FFI — the parser runs on any
+    host, so its tests execute on the Linux CI job too.
+  * Files are read through two windowed reads (headers, then the resource
+    section) rather than loaded whole.
+  * Version formatting is single-sourced: `fixedVersionParts` with
+    `formatFixedVersion` (semver, revision dropped) and `formatFullVersion`
+    (all four components) on top.
+
 ## 3.0.0
 
 * **BREAKING**:

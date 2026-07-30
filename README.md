@@ -2,7 +2,7 @@
 
 [![pub package](https://img.shields.io/pub/v/flutter_bin.svg)](https://pub.dev/packages/flutter_bin)
 
-A pure-Dart package to retrieve metadata from binary files (executable files) on desktop platforms. Supports Windows and macOS, and works in both Flutter and plain Dart projects. Windows reads the PE version resource via `dart:ffi`; macOS parses the app bundle's `Info.plist`. Calls on unsupported platforms throw `UnsupportedError`.
+A pure-Dart package to retrieve metadata from binary files (executable files) on desktop platforms. Supports Windows and macOS, and works in both Flutter and plain Dart projects. Windows asks the OS for the PE version resource via `dart:ffi`, or parses the resource out of the image itself when you want what the binary carries ([Two Views of a Windows Binary](#two-views-of-a-windows-binary)); macOS parses the app bundle's `Info.plist`. Calls on unsupported platforms throw `UnsupportedError`.
 
 ## Features
 
@@ -14,6 +14,8 @@ A pure-Dart package to retrieve metadata from binary files (executable files) on
   - Legal copyright
   - Original filename
   - Company name
+- Read the PE version resource straight out of the image — including binaries the
+  Win32 version APIs report as having none ([Two Views of a Windows Binary](#two-views-of-a-windows-binary))
 - Easy integration with file pickers
 
 ## Getting Started
@@ -22,7 +24,7 @@ Add the package to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  flutter_bin: ^3.0.0
+  flutter_bin: ^3.1.0
 ```
 
 ## Usage
@@ -209,6 +211,12 @@ The package includes a full example showcasing all features. To run the example:
 cd example
 flutter run
 ```
+
+Pick a binary, then compare the buttons: **Get Full Metadata** shows the OS view,
+and **Read PE Image View** shows every version resource in the image — each key
+with its value, the leaf the singular API selects, and the result of
+`toBinaryFileMetadata()`. Pointing it at a binary like FileZilla 3.66.5 shows the
+OS view reading nothing while the image view reads all nine keys.
 
 ## License
 
