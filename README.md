@@ -145,6 +145,23 @@ if (resource != null) {
 | Host platform | Windows only | Any (pure Dart) |
 | File I/O | Delegated to `version.dll` | Two windowed reads: headers, then the resource section |
 
+An image can carry several version resources — one per language, and in principle
+one per entry name. `readPeVersionResource` returns the one the OS would pick (the
+numeric id `1` entry, else the first the directory lists);
+`readPeVersionResources` returns them all, in resource-directory order.
+
+```dart
+for (final resource in await readPeVersionResources(path)) {
+  print('${resource.resourceName} / ${resource.languageId}');
+}
+```
+
+That selection rule matters because resource directories sort *named* entries
+before numeric ones: without it, an image carrying both `#1` and
+`VS_VERSION_INFO` would report the named entry here and the `#1` entry through the
+OS view. Entry selection is the third way the two views can diverge, after MUI and
+locale.
+
 The views agree for most binaries and disagree where MUI is involved:
 `C:\Windows\System32\mstsc.exe` reports `originalFilename` as `mstsc.exe.mui`
 through the OS view and `mstsc.exe` through the image view. Both are correct for

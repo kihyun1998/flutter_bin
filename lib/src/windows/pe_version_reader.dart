@@ -22,19 +22,31 @@ import 'version_info.dart';
 /// data as one region — so this trades an unused capability for not reading the
 /// file.
 ///
+/// An image can carry more than one version resource — several languages under
+/// one entry, or several entries. This returns the one Win32 would pick (see
+/// [selectPeVersionResource]); use [readPeVersionResources] for all of them.
+///
 /// Returns null when [filePath] is absent, is not a PE image, or has no version
 /// resource. Never throws for malformed input.
-Future<PeVersionResource?> readPeVersionResource(String filePath) async {
+Future<PeVersionResource?> readPeVersionResource(String filePath) async =>
+    selectPeVersionResource(await readPeVersionResources(filePath));
+
+/// Every `RT_VERSION` leaf the image carries, in resource-directory order —
+/// named entries before numeric ones, and languages in the order each entry
+/// lists them. Empty when there is nothing to read.
+///
+/// See [readPeVersionResource] for the file-handling contract.
+Future<List<PeVersionResource>> readPeVersionResources(String filePath) async {
   RandomAccessFile? handle;
   try {
     final file = File(filePath);
-    if (!await file.exists()) return null;
+    if (!await file.exists()) return const [];
     handle = await file.open();
     return await _readFromHandle(handle);
   } on FileSystemException {
-    return null;
+    return const [];
   } on RangeError {
-    return null;
+    return const [];
   } finally {
     await handle?.close();
   }
@@ -45,19 +57,38 @@ Future<PeVersionResource?> readPeVersionResource(String filePath) async {
 ///
 /// Having the whole image in hand, this resolves the version payload through the
 /// full section table, wherever it points.
-PeVersionResource? parsePeVersionResource(Uint8List bytes) {
+PeVersionResource? parsePeVersionResource(Uint8List bytes) =>
+    selectPeVersionResource(parsePeVersionResources(bytes));
+
+/// Every `RT_VERSION` leaf in an in-memory image. See [readPeVersionResources].
+List<PeVersionResource> parsePeVersionResources(Uint8List bytes) {
   try {
     final data = ByteData.sublistView(bytes);
     final headers = _parseHeaders(data, bytes.length);
-    if (headers == null) return null;
+    if (headers == null) return const [];
     final resourceBase = _rvaToOffset(headers.sections, headers.resourceRva);
-    if (resourceBase == null) return null;
-    return _readVersionLeaf(data, bytes.length, headers.sections, resourceBase);
+    if (resourceBase == null) return const [];
+    return _readVersionLeaves(
+        data, bytes.length, headers.sections, resourceBase);
   } on RangeError {
     // Defence in depth: every read below is bounds-checked, so reaching here
     // means a case was missed — still no throw for the caller.
-    return null;
+    return const [];
   }
+}
+
+/// Picks the single resource the OS view would report: the numeric id `1` entry
+/// when the image has one, otherwise the first the directory lists.
+///
+/// `GetFileVersionInfo` looks up id `1` only, so preferring it keeps the two
+/// views on the same leaf. Without the rule the answer would flip on entry order
+/// alone — resource directories sort *named* entries first, so an image carrying
+/// both `#1` and `VS_VERSION_INFO` would otherwise report the named one.
+PeVersionResource? selectPeVersionResource(List<PeVersionResource> resources) {
+  for (final resource in resources) {
+    if (resource.resourceName == '#$_versionResourceId') return resource;
+  }
+  return resources.isEmpty ? null : resources.first;
 }
 
 // --- windowed file reads ---------------------------------------------------
@@ -69,39 +100,39 @@ const int _headerProbeLength = 0x400;
 
 /// Reads the two regions the parser needs — the headers, then the resource
 /// section — instead of the whole file.
-Future<PeVersionResource?> _readFromHandle(RandomAccessFile handle) async {
+Future<List<PeVersionResource>> _readFromHandle(RandomAccessFile handle) async {
   final fileLength = await handle.length();
-  if (fileLength < 0x40) return null;
+  if (fileLength < 0x40) return const [];
 
   var headerBytes = await _readAt(handle, 0, _headerProbeLength, fileLength);
   var headerData = ByteData.sublistView(headerBytes);
-  if (headerBytes.length < 0x40) return null;
-  if (headerData.getUint16(0, Endian.little) != _dosSignature) return null;
+  if (headerBytes.length < 0x40) return const [];
+  if (headerData.getUint16(0, Endian.little) != _dosSignature) return const [];
 
   // The section table's extent is only known after reading the COFF header, so
   // re-read from the start when the probe fell short of it.
   final peOffset = headerData.getUint32(0x3C, Endian.little);
-  if (!_within(peOffset, 26, fileLength)) return null;
+  if (!_within(peOffset, 26, fileLength)) return const [];
   if (!_within(peOffset, 26, headerBytes.length)) {
     headerBytes = await _readAt(handle, 0, peOffset + 26, fileLength);
     headerData = ByteData.sublistView(headerBytes);
-    if (!_within(peOffset, 26, headerBytes.length)) return null;
+    if (!_within(peOffset, 26, headerBytes.length)) return const [];
   }
   final sectionCount = headerData.getUint16(peOffset + 6, Endian.little);
   final optionalSize = headerData.getUint16(peOffset + 20, Endian.little);
   final headerEnd = peOffset + 24 + optionalSize + sectionCount * 40;
-  if (headerEnd > fileLength) return null;
+  if (headerEnd > fileLength) return const [];
   if (headerEnd > headerBytes.length) {
     headerBytes = await _readAt(handle, 0, headerEnd, fileLength);
     headerData = ByteData.sublistView(headerBytes);
-    if (headerEnd > headerBytes.length) return null;
+    if (headerEnd > headerBytes.length) return const [];
   }
 
   final headers = _parseHeaders(headerData, headerBytes.length);
-  if (headers == null) return null;
+  if (headers == null) return const [];
 
   final section = _sectionFor(headers.sections, headers.resourceRva);
-  if (section == null) return null;
+  if (section == null) return const [];
   final resourceBase =
       section.rawOffset + (headers.resourceRva - section.virtualAddress);
   // The declared directory size can undershoot the section, so take the larger
@@ -110,10 +141,12 @@ Future<PeVersionResource?> _readFromHandle(RandomAccessFile handle) async {
     fileLength - resourceBase,
     _max(headers.resourceSize, section.rawSize),
   );
-  if (!_within(resourceBase, 16, fileLength) || windowLength < 16) return null;
+  if (!_within(resourceBase, 16, fileLength) || windowLength < 16) {
+    return const [];
+  }
 
   final window = await _readAt(handle, resourceBase, windowLength, fileLength);
-  if (window.length < 16) return null;
+  if (window.length < 16) return const [];
 
   // Rebase the sections onto the window so the resource walk keeps working in
   // one coordinate space; sections outside the window fall away.
@@ -123,7 +156,7 @@ Future<PeVersionResource?> _readFromHandle(RandomAccessFile handle) async {
   ];
 
   // The window starts at the resource directory, so its base is offset 0.
-  return _readVersionLeaf(
+  return _readVersionLeaves(
     ByteData.sublistView(window),
     window.length,
     windowSections,
@@ -147,7 +180,12 @@ const int _peSignature = 0x00004550; // 'PE\0\0'
 const int _pe32Magic = 0x010B;
 const int _pe32PlusMagic = 0x020B;
 const int _resourceTableDirectoryIndex = 2;
-const int _rtVersion = 16;
+
+/// `RT_VERSION`, the resource type version info lives under.
+const int _versionResourceType = 16;
+
+/// `VS_VERSION_INFO`, the resource *name* the Win32 version APIs look up.
+const int _versionResourceId = 1;
 const int _subdirectoryFlag = 0x80000000;
 const int _fixedFileInfoSignature = 0xFEEF04BD;
 
@@ -265,28 +303,57 @@ int? _rvaToOffset(List<_PeSection> sections, int rva) {
 
 // --- resource directory ----------------------------------------------------
 
-/// Walks type -> name -> language and parses the leaf the `RT_VERSION` type
-/// points at. The name level accepts any entry, id or string — that is what
-/// makes string-named resources readable.
-PeVersionResource? _readVersionLeaf(
+/// Walks type -> name -> language and parses every leaf under the `RT_VERSION`
+/// type, in directory order. The name level accepts any entry, id or string —
+/// that is what makes string-named resources readable.
+///
+/// A leaf whose data entry is unusable is skipped rather than failing the whole
+/// walk, so one corrupt language does not hide the others.
+List<PeVersionResource> _readVersionLeaves(
   ByteData data,
   int length,
   List<_PeSection> sections,
   int resourceBase,
 ) {
-  final typeEntry =
-      _findEntry(data, resourceBase, resourceBase, length, wantId: _rtVersion);
-  if (typeEntry == null || !typeEntry.isSubdirectory) return null;
+  _ResourceEntry? versionType;
+  for (final entry in _entries(data, resourceBase, resourceBase, length)) {
+    if (entry.isSubdirectory && entry.id == _versionResourceType) {
+      versionType = entry;
+      break;
+    }
+  }
+  if (versionType == null) return const [];
 
-  final nameEntry =
-      _findEntry(data, resourceBase + typeEntry.offset, resourceBase, length);
-  if (nameEntry == null || !nameEntry.isSubdirectory) return null;
+  final resources = <PeVersionResource>[];
+  for (final nameEntry in _entries(
+      data, resourceBase + versionType.offset, resourceBase, length)) {
+    if (!nameEntry.isSubdirectory) continue;
+    for (final languageEntry in _entries(
+        data, resourceBase + nameEntry.offset, resourceBase, length)) {
+      if (languageEntry.isSubdirectory) continue;
+      final resource = _readLeaf(
+        data,
+        length,
+        sections,
+        resourceBase + languageEntry.offset,
+        resourceName: nameEntry.name,
+        languageId: languageEntry.id,
+      );
+      if (resource != null) resources.add(resource);
+    }
+  }
+  return resources;
+}
 
-  final languageEntry =
-      _findEntry(data, resourceBase + nameEntry.offset, resourceBase, length);
-  if (languageEntry == null || languageEntry.isSubdirectory) return null;
-
-  final dataEntry = resourceBase + languageEntry.offset;
+/// Resolves one `IMAGE_RESOURCE_DATA_ENTRY` and parses the block it points at.
+PeVersionResource? _readLeaf(
+  ByteData data,
+  int length,
+  List<_PeSection> sections,
+  int dataEntry, {
+  required String resourceName,
+  required int languageId,
+}) {
   if (!_within(dataEntry, 8, length)) return null;
   final payloadRva = data.getUint32(dataEntry, Endian.little);
   final payloadSize = data.getUint32(dataEntry + 4, Endian.little);
@@ -298,8 +365,8 @@ PeVersionResource? _readVersionLeaf(
     data,
     payloadOffset,
     payloadSize,
-    resourceName: nameEntry.name,
-    languageId: languageEntry.id,
+    resourceName: resourceName,
+    languageId: languageId,
   );
 }
 
@@ -318,28 +385,27 @@ class _ResourceEntry {
   final bool isSubdirectory;
 }
 
-/// Returns the first entry of the directory at [directoryOffset], or the entry
-/// whose numeric id is [wantId] when given.
-_ResourceEntry? _findEntry(
+/// Every entry of the directory at [directoryOffset], in the order it lists them
+/// — named entries first, then numeric ids, as the format requires. Entries whose
+/// name string cannot be read are skipped.
+List<_ResourceEntry> _entries(
   ByteData data,
   int directoryOffset,
   int resourceBase,
-  int length, {
-  int? wantId,
-}) {
-  if (!_within(directoryOffset, 16, length)) return null;
+  int length,
+) {
+  if (!_within(directoryOffset, 16, length)) return const [];
   final namedCount = data.getUint16(directoryOffset + 12, Endian.little);
   final idCount = data.getUint16(directoryOffset + 14, Endian.little);
 
+  final entries = <_ResourceEntry>[];
   for (var i = 0; i < namedCount + idCount; i++) {
     final offset = directoryOffset + 16 + i * 8;
-    if (!_within(offset, 8, length)) return null;
+    if (!_within(offset, 8, length)) break;
     final nameField = data.getUint32(offset, Endian.little);
     final dataField = data.getUint32(offset + 4, Endian.little);
     final isString = nameField & _subdirectoryFlag != 0;
     final id = isString ? -1 : nameField;
-
-    if (wantId != null && (isString || id != wantId)) continue;
 
     final name = isString
         ? _readResourceName(
@@ -347,14 +413,14 @@ _ResourceEntry? _findEntry(
         : '#$id';
     if (name == null) continue;
 
-    return _ResourceEntry(
+    entries.add(_ResourceEntry(
       name: name,
       id: id,
       offset: dataField & ~_subdirectoryFlag,
       isSubdirectory: dataField & _subdirectoryFlag != 0,
-    );
+    ));
   }
-  return null;
+  return entries;
 }
 
 /// A directory name string: a 16-bit character count then unterminated UTF-16.

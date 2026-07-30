@@ -55,6 +55,29 @@ const List<PeTableSpec> fileZillaTables = [
   }),
 ];
 
+/// One `RT_VERSION` leaf to emit: how its directory entry is named, which
+/// language it sits under, and what payload it carries.
+class PeLeafSpec {
+  const PeLeafSpec({
+    this.resourceKey = const PeResourceId(1),
+    this.languageId = 1033,
+    this.fileVersion = const [3, 66, 5, 0],
+    this.productVersion,
+    this.tables = fileZillaTables,
+    this.dataEntrySizeOverride,
+  });
+
+  final PeResourceKey resourceKey;
+  final int languageId;
+  final List<int>? fileVersion;
+  final List<int>? productVersion;
+  final List<PeTableSpec> tables;
+
+  /// Makes this leaf's data entry lie about its payload size, so a single
+  /// unusable leaf can be placed among healthy ones.
+  final int? dataEntrySizeOverride;
+}
+
 const int _rsrcRva = 0x1000;
 const int _fileAlignment = 0x200;
 
@@ -79,19 +102,44 @@ Uint8List buildPeImage({
   int? rootLengthOverride,
   int? dataEntrySizeOverride,
 }) {
-  final versionBlock = buildVersionBlock(
-    fileVersion: fileVersion,
-    productVersion: productVersion ?? fileVersion,
-    tables: tables,
+  return buildPeImageWithLeaves(
+    leaves: [
+      PeLeafSpec(
+        resourceKey: resourceKey,
+        languageId: languageId,
+        fileVersion: fileVersion,
+        productVersion: productVersion,
+        tables: tables,
+      ),
+    ],
+    resourceTypeId: resourceTypeId,
+    pe32Plus: pe32Plus,
+    includeResourceSection: includeResourceSection,
     rootLengthOverride: rootLengthOverride,
+    dataEntrySizeOverride: dataEntrySizeOverride,
   );
+}
 
+/// Builds a PE image carrying several `RT_VERSION` leaves — a name entry per
+/// distinct [PeLeafSpec.resourceKey], and a language entry under it per leaf that
+/// shares that key. This is the multi-language / multi-name shape the single-leaf
+/// [buildPeImage] cannot express.
+///
+/// [rootLengthOverride] and [dataEntrySizeOverride] apply to every leaf; use
+/// [PeLeafSpec.dataEntrySizeOverride] to corrupt one leaf in isolation.
+Uint8List buildPeImageWithLeaves({
+  required List<PeLeafSpec> leaves,
+  int resourceTypeId = 16,
+  bool pe32Plus = true,
+  bool includeResourceSection = true,
+  int? rootLengthOverride,
+  int? dataEntrySizeOverride,
+}) {
   final rsrc = includeResourceSection
       ? _buildResourceSection(
-          resourceKey: resourceKey,
+          leaves: leaves,
           resourceTypeId: resourceTypeId,
-          languageId: languageId,
-          versionBlock: versionBlock,
+          rootLengthOverride: rootLengthOverride,
           dataEntrySizeOverride: dataEntrySizeOverride,
         )
       : Uint8List(0);
@@ -229,69 +277,161 @@ Uint8List _translationValue(List<PeTableSpec> tables) {
 // --- resource directory ----------------------------------------------------
 
 /// Three levels of `IMAGE_RESOURCE_DIRECTORY` (type -> name -> language), one
-/// `IMAGE_RESOURCE_DATA_ENTRY`, an optional name string, then the payload.
+/// `IMAGE_RESOURCE_DATA_ENTRY` per leaf, the name strings, then the payloads.
 Uint8List _buildResourceSection({
-  required PeResourceKey resourceKey,
+  required List<PeLeafSpec> leaves,
   required int resourceTypeId,
-  required int languageId,
-  required Uint8List versionBlock,
+  int? rootLengthOverride,
   int? dataEntrySizeOverride,
 }) {
-  const dirSize = 16 + 8; // header + one entry
-  const typeDirOffset = 0;
-  const nameDirOffset = typeDirOffset + dirSize;
-  const langDirOffset = nameDirOffset + dirSize;
-  const dataEntryOffset = langDirOffset + dirSize;
+  // A name entry per distinct key, with its leaves beneath it. PE sorts named
+  // entries before id entries, so emit them in that order.
+  final groups = <String, List<PeLeafSpec>>{};
+  for (final leaf in leaves) {
+    groups.putIfAbsent(_groupKey(leaf.resourceKey), () => []).add(leaf);
+  }
+  final ordered = [
+    ...groups.values
+        .where((group) => group.first.resourceKey is PeResourceName),
+    ...groups.values.where((group) => group.first.resourceKey is PeResourceId),
+  ];
 
-  final nameString = switch (resourceKey) {
-    PeResourceId() => null,
-    PeResourceName(:final value) => _resourceNameString(value),
-  };
-  final nameStringOffset = dataEntryOffset + 16;
-  final payloadOffset = _align4(nameStringOffset + (nameString?.length ?? 0));
+  const dirHeader = 16;
+  const entrySize = 8;
+  const dataEntrySize = 16;
 
-  final out = Uint8List(payloadOffset + versionBlock.length);
+  // Lay the section out in one pass: directories, data entries, name strings,
+  // then the 4-byte-aligned payloads.
+  var cursor = 0;
+  final typeDirOffset = cursor;
+  cursor += dirHeader + entrySize;
+  final nameDirOffset = cursor;
+  cursor += dirHeader + entrySize * ordered.length;
+
+  final languageDirOffsets = <int>[];
+  for (final group in ordered) {
+    languageDirOffsets.add(cursor);
+    cursor += dirHeader + entrySize * group.length;
+  }
+
+  final dataEntryOffsets = <List<int>>[];
+  for (final group in ordered) {
+    final offsets = <int>[];
+    for (var i = 0; i < group.length; i++) {
+      offsets.add(cursor);
+      cursor += dataEntrySize;
+    }
+    dataEntryOffsets.add(offsets);
+  }
+
+  final nameStrings = <Uint8List?>[];
+  final nameStringOffsets = <int>[];
+  for (final group in ordered) {
+    final key = group.first.resourceKey;
+    final string = switch (key) {
+      PeResourceId() => null,
+      PeResourceName(:final value) => _resourceNameString(value),
+    };
+    nameStrings.add(string);
+    nameStringOffsets.add(cursor);
+    cursor += string?.length ?? 0;
+  }
+
+  final payloads = <List<Uint8List>>[];
+  final payloadOffsets = <List<int>>[];
+  for (final group in ordered) {
+    final blocks = <Uint8List>[];
+    final offsets = <int>[];
+    for (final leaf in group) {
+      cursor = _align4(cursor);
+      offsets.add(cursor);
+      final block = buildVersionBlock(
+        fileVersion: leaf.fileVersion,
+        productVersion: leaf.productVersion ?? leaf.fileVersion,
+        tables: leaf.tables,
+        rootLengthOverride: rootLengthOverride,
+      );
+      blocks.add(block);
+      cursor += block.length;
+    }
+    payloads.add(blocks);
+    payloadOffsets.add(offsets);
+  }
+
+  final out = Uint8List(cursor);
   final view = ByteData.sublistView(out);
 
-  void writeDirectory(int offset, int nameField, int childOffset,
-      {required bool named, required bool isLeafPointer}) {
-    view.setUint16(offset + 12, named ? 1 : 0, Endian.little); // named entries
-    view.setUint16(offset + 14, named ? 0 : 1, Endian.little); // id entries
-    view.setUint32(offset + 16, nameField, Endian.little);
+  void writeDirectoryHeader(int offset, int namedCount, int idCount) {
+    view.setUint16(offset + 12, namedCount, Endian.little);
+    view.setUint16(offset + 14, idCount, Endian.little);
+  }
+
+  void writeEntry(int offset, int nameField, int childOffset,
+      {required bool isLeafPointer}) {
+    view.setUint32(offset, nameField, Endian.little);
     view.setUint32(
-      offset + 20,
+      offset + 4,
       isLeafPointer ? childOffset : (0x80000000 | childOffset),
       Endian.little,
     );
   }
 
-  writeDirectory(typeDirOffset, resourceTypeId, nameDirOffset,
-      named: false, isLeafPointer: false);
-  writeDirectory(
-    nameDirOffset,
-    switch (resourceKey) {
-      PeResourceId(:final value) => value,
-      PeResourceName() => 0x80000000 | nameStringOffset,
-    },
-    langDirOffset,
-    named: nameString != null,
-    isLeafPointer: false,
-  );
-  writeDirectory(langDirOffset, languageId, dataEntryOffset,
-      named: false, isLeafPointer: true);
+  writeDirectoryHeader(typeDirOffset, 0, 1);
+  writeEntry(typeDirOffset + dirHeader, resourceTypeId, nameDirOffset,
+      isLeafPointer: false);
 
-  view.setUint32(dataEntryOffset, _rsrcRva + payloadOffset, Endian.little);
-  view.setUint32(dataEntryOffset + 4,
-      dataEntrySizeOverride ?? versionBlock.length, Endian.little);
+  final namedGroups = nameStrings.where((string) => string != null).length;
+  writeDirectoryHeader(
+      nameDirOffset, namedGroups, ordered.length - namedGroups);
 
-  if (nameString != null) {
-    out.setRange(
-        nameStringOffset, nameStringOffset + nameString.length, nameString);
+  for (var g = 0; g < ordered.length; g++) {
+    final group = ordered[g];
+    final nameString = nameStrings[g];
+    writeEntry(
+      nameDirOffset + dirHeader + entrySize * g,
+      switch (group.first.resourceKey) {
+        PeResourceId(:final value) => value,
+        PeResourceName() => 0x80000000 | nameStringOffsets[g],
+      },
+      languageDirOffsets[g],
+      isLeafPointer: false,
+    );
+    if (nameString != null) {
+      out.setRange(nameStringOffsets[g],
+          nameStringOffsets[g] + nameString.length, nameString);
+    }
+
+    writeDirectoryHeader(languageDirOffsets[g], 0, group.length);
+    for (var l = 0; l < group.length; l++) {
+      writeEntry(
+        languageDirOffsets[g] + dirHeader + entrySize * l,
+        group[l].languageId,
+        dataEntryOffsets[g][l],
+        isLeafPointer: true,
+      );
+
+      final payload = payloads[g][l];
+      final payloadOffset = payloadOffsets[g][l];
+      view.setUint32(
+          dataEntryOffsets[g][l], _rsrcRva + payloadOffset, Endian.little);
+      view.setUint32(
+          dataEntryOffsets[g][l] + 4,
+          group[l].dataEntrySizeOverride ??
+              dataEntrySizeOverride ??
+              payload.length,
+          Endian.little);
+      out.setRange(payloadOffset, payloadOffset + payload.length, payload);
+    }
   }
-  out.setRange(
-      payloadOffset, payloadOffset + versionBlock.length, versionBlock);
+
   return out;
 }
+
+/// Groups leaves that share a directory entry — same id, or same name string.
+String _groupKey(PeResourceKey key) => switch (key) {
+      PeResourceId(:final value) => 'id:$value',
+      PeResourceName(:final value) => 'name:$value',
+    };
 
 /// A resource directory name: 16-bit character count then the UTF-16 chars, no
 /// terminator.
