@@ -28,6 +28,27 @@ void main() {
     });
   });
 
+  group('formatFullVersion', () {
+    test('keeps the revision the semver formatter drops', () {
+      final ms = (10 << 16) | 0;
+      final ls = (26100 << 16) | 8875;
+      expect(formatFullVersion(ms, ls), '10.0.26100.8875');
+      expect(formatFixedVersion(ms, ls), '10.0.26100');
+    });
+
+    test('handles zeros', () {
+      expect(formatFullVersion(0, 0), '0.0.0.0');
+    });
+  });
+
+  group('fixedVersionParts', () {
+    test('splits both DWORDs into four components', () {
+      final ms = (1 << 16) | 2;
+      final ls = (3 << 16) | 4;
+      expect(fixedVersionParts(ms, ls), [1, 2, 3, 4]);
+    });
+  });
+
   group('stringFileInfoSubBlock', () {
     test('default block uses the hardcoded uppercase 040904B0 lang/codepage',
         () {
