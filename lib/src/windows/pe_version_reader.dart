@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import '../../models/pe_version_resource.dart';
+import 'version_info.dart';
 
 /// Reads the version resource out of a PE image, in pure Dart.
 ///
@@ -13,7 +14,13 @@ import '../../models/pe_version_resource.dart';
 /// version info at all.
 ///
 /// Only the headers and the resource section are read, so pointing this at a
-/// large binary does not pull the whole file into memory.
+/// large binary does not pull the whole file into memory. The consequence is a
+/// narrower reach than [parsePeVersionResource]: an image that points its version
+/// payload at a section other than the one holding the resource directory reads
+/// as null here, while the in-memory parser can still follow it. No PE toolchain
+/// is known to emit that layout — the loader maps the resource directory and its
+/// data as one region — so this trades an unused capability for not reading the
+/// file.
 ///
 /// Returns null when [filePath] is absent, is not a PE image, or has no version
 /// resource. Never throws for malformed input.
@@ -35,6 +42,9 @@ Future<PeVersionResource?> readPeVersionResource(String filePath) async {
 
 /// Parses an in-memory PE image. See [readPeVersionResource]; prefer that when
 /// the image is a file, since it reads only the parts it needs.
+///
+/// Having the whole image in hand, this resolves the version payload through the
+/// full section table, wherever it points.
 PeVersionResource? parsePeVersionResource(Uint8List bytes) {
   try {
     final data = ByteData.sublistView(bytes);
@@ -384,11 +394,13 @@ PeVersionResource _parseVersionBlock(
   if (valueLength >= 24 &&
       cursor + 24 <= end &&
       data.getUint32(cursor, Endian.little) == _fixedFileInfoSignature) {
-    fileVersion = _formatVersion(
+    // The four-part version as the resource states it;
+    // PeVersionResource.toBinaryFileMetadata applies the semver truncation.
+    fileVersion = formatFullVersion(
       data.getUint32(cursor + 8, Endian.little),
       data.getUint32(cursor + 12, Endian.little),
     );
-    productVersion = _formatVersion(
+    productVersion = formatFullVersion(
       data.getUint32(cursor + 16, Endian.little),
       data.getUint32(cursor + 20, Endian.little),
     );
@@ -473,16 +485,6 @@ String _readTerminated(ByteData data, int offset, int limit) {
     cursor += 2;
   }
   return String.fromCharCodes(units);
-}
-
-/// The full four-part version; [PeVersionResource.toBinaryFileMetadata] is what
-/// truncates it for the cross-platform contract.
-String _formatVersion(int versionMS, int versionLS) {
-  final major = (versionMS >> 16) & 0xFFFF;
-  final minor = versionMS & 0xFFFF;
-  final build = (versionLS >> 16) & 0xFFFF;
-  final revision = versionLS & 0xFFFF;
-  return '$major.$minor.$build.$revision';
 }
 
 // --- helpers ---------------------------------------------------------------

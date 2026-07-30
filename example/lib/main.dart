@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bin/flutter_bin.dart';
+import 'package:flutter_bin/pe.dart';
 
 void main() {
   runApp(const MyApp());
@@ -30,6 +31,8 @@ class _BinaryMetadataScreenState extends State<BinaryMetadataScreen> {
   String? _filePath;
   String _version = '';
   BinaryFileMetadata? _metadata;
+  PeVersionResource? _peResource;
+  String _peStatus = '';
 
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles();
@@ -38,6 +41,8 @@ class _BinaryMetadataScreenState extends State<BinaryMetadataScreen> {
         _filePath = result.files.single.path!;
         _version = '';
         _metadata = null;
+        _peResource = null;
+        _peStatus = '';
       });
     }
   }
@@ -75,6 +80,20 @@ class _BinaryMetadataScreenState extends State<BinaryMetadataScreen> {
     }
   }
 
+  /// The image view: parses the PE file itself, so it also reads binaries whose
+  /// version resource the OS cannot find. Values can differ from the OS view for
+  /// MUI-based binaries — see the README.
+  Future<void> _getPeImageView() async {
+    if (_filePath == null) return;
+    final resource = await readPeVersionResource(_filePath!);
+    setState(() {
+      _peResource = resource;
+      _peStatus = resource == null
+          ? 'Not a PE image, or no version resource'
+          : 'Read from the image';
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -102,6 +121,10 @@ class _BinaryMetadataScreenState extends State<BinaryMetadataScreen> {
                   onPressed: _getMetadata,
                   child: const Text('Get Full Metadata'),
                 ),
+                ElevatedButton(
+                  onPressed: _getPeImageView,
+                  child: const Text('Read PE Image View'),
+                ),
               ],
             ),
             const SizedBox(height: 24),
@@ -113,6 +136,12 @@ class _BinaryMetadataScreenState extends State<BinaryMetadataScreen> {
               const Text('Metadata:',
                   style: TextStyle(fontWeight: FontWeight.bold)),
               _buildMetadataTable(),
+            ],
+            if (_peStatus.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Text('PE image view: $_peStatus',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              if (_peResource != null) _buildPeTable(_peResource!),
             ],
           ],
         ),
@@ -130,6 +159,24 @@ class _BinaryMetadataScreenState extends State<BinaryMetadataScreen> {
         _buildRow('Copyright', _metadata!.legalCopyright),
         _buildRow('Original Filename', _metadata!.originalFilename),
         _buildRow('Company', _metadata!.companyName),
+      ],
+    );
+  }
+
+  Widget _buildPeTable(PeVersionResource resource) {
+    return Table(
+      columnWidths: const {0: IntrinsicColumnWidth()},
+      border: TableBorder.all(color: Colors.grey),
+      children: [
+        // '#1' for the conventional numeric entry, a name string otherwise —
+        // the latter is what the OS view cannot find.
+        _buildRow('Resource Name', resource.resourceName),
+        _buildRow('Language Id', '${resource.languageId}'),
+        _buildRow('File Version', resource.fixedFileVersion),
+        _buildRow('Product Version', resource.fixedProductVersion),
+        for (final table in resource.stringTables)
+          _buildRow(table.languageCodePage,
+              '${table.values.length} keys: ${table.values.keys.join(', ')}'),
       ],
     );
   }

@@ -2,18 +2,31 @@
 // version-info resource. Kept free of `dart:ffi` / `dart:io` so they can be
 // unit-tested on any host (including the Linux CI job).
 
-/// Formats a fixed file-info version as a semantic `major.minor.build`.
+/// Splits the two `VS_FIXEDFILEINFO` version DWORDs into their four components.
 ///
 /// [fileVersionMS] and [fileVersionLS] are the `dwFileVersionMS` /
-/// `dwFileVersionLS` fields of `VS_FIXEDFILEINFO`. The Windows file version is
-/// `major.minor.build.revision`; the trailing revision is dropped so the value
-/// matches semver across platforms (see #5 / ADR-0003).
-String formatFixedVersion(int fileVersionMS, int fileVersionLS) {
-  final major = (fileVersionMS >> 16) & 0xFFFF;
-  final minor = fileVersionMS & 0xFFFF;
-  final build = (fileVersionLS >> 16) & 0xFFFF;
-  return '$major.$minor.$build';
-}
+/// `dwFileVersionLS` fields (or the `dwProductVersion*` pair, same layout):
+/// `[major, minor, build, revision]`.
+List<int> fixedVersionParts(int fileVersionMS, int fileVersionLS) => [
+      (fileVersionMS >> 16) & 0xFFFF,
+      fileVersionMS & 0xFFFF,
+      (fileVersionLS >> 16) & 0xFFFF,
+      fileVersionLS & 0xFFFF,
+    ];
+
+/// Formats a fixed file-info version as a semantic `major.minor.build`.
+///
+/// The Windows file version is `major.minor.build.revision`; the trailing
+/// revision is dropped so the value matches semver across platforms (see #5 /
+/// ADR-0003). Use [formatFullVersion] when the revision matters.
+String formatFixedVersion(int fileVersionMS, int fileVersionLS) =>
+    fixedVersionParts(fileVersionMS, fileVersionLS).take(3).join('.');
+
+/// Formats a fixed file-info version with all four components, revision
+/// included — the version as the resource states it, before the semver
+/// truncation [formatFixedVersion] applies.
+String formatFullVersion(int fileVersionMS, int fileVersionLS) =>
+    fixedVersionParts(fileVersionMS, fileVersionLS).join('.');
 
 /// Builds a `VerQueryValue` sub-block path for a named string such as
 /// `ProductName`.
