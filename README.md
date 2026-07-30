@@ -104,13 +104,62 @@ flutter_bin extracts the following metadata from binary files:
 | originalFilename | Original name of the file | OriginalFilename | CFBundleExecutable |
 | companyName | Company or developer name | CompanyName | Not typically available |
 
+## Two Views of a Windows Binary
+
+`getBinaryFileMetadata` asks the operating system what it reports for a file. That
+is what you normally want, but it has two consequences: the values can come from a
+MUI satellite resource rather than the binary itself, and a binary whose
+`RT_VERSION` resource is stored under a *name string* instead of the numeric id
+`1` reads as having no version info at all — the Win32 version APIs look up the
+numeric id only. Some `windres` builds emit such resources (FileZilla 3.66.5, for
+example), and Explorer shows nothing for them either.
+
+`package:flutter_bin/pe.dart` adds the *image view*: it parses the PE file
+directly, finds the version resource by type regardless of how the entry is named,
+and returns everything the resource carries.
+
+```dart
+import 'package:flutter_bin/pe.dart';
+
+final resource = await readPeVersionResource(path); // null if not a PE / no resource
+if (resource != null) {
+  print(resource.resourceName);          // '#1', or 'VS_VERSION_INFO'
+  print(resource.fixedFileVersion);      // '3.66.5.0' (four parts)
+  print(resource.value('CompanyName'));  // 'FileZilla Project'
+
+  for (final table in resource.stringTables) {
+    print('${table.languageCodePage}: ${table.values}'); // every key, every table
+  }
+
+  final metadata = resource.toBinaryFileMetadata(); // same model as the OS view
+}
+```
+
+| | `getBinaryFileMetadata` (OS view) | `readPeVersionResource` (image view) |
+|---|---|---|
+| Question answered | What does the OS report for this file? | What is embedded in this image? |
+| Follows MUI satellites | Yes | No |
+| Locale dependent | Yes | No |
+| String-named `RT_VERSION` | Not readable | Readable |
+| Fields | The six in the table above | Resource name, language id, four-part file/product versions, every string table with every key |
+| Host platform | Windows only | Any (pure Dart) |
+
+The views agree for most binaries and disagree where MUI is involved:
+`C:\Windows\System32\mstsc.exe` reports `originalFilename` as `mstsc.exe.mui`
+through the OS view and `mstsc.exe` through the image view. Both are correct for
+the question they answer, so the two are not interchangeable — pick per call site
+rather than treating one as a fallback for the other.
+
+macOS needs no equivalent: `Info.plist` is read from the bundle directly, so there
+is no hidden-resource case to recover.
+
 ## Platform Support
 
 | Platform | Status |
 |----------|--------|
-| Windows  | ✅ Supported |
+| Windows  | ✅ Supported (OS view + PE image view) |
 | macOS    | ✅ Supported |
-| Linux    | ❌ Planned |
+| Linux    | ❌ Planned (PE image view already works from any host) |
 
 ## File Path Formats
 
