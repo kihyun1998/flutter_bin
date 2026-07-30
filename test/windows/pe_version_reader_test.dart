@@ -184,6 +184,151 @@ void main() {
     });
   });
 
+  group('multiple RT_VERSION leaves', () {
+    // Two languages under one name entry — the shape a multi-language build
+    // produces, and the one that used to lose everything past the first leaf.
+    final twoLanguages = buildPeImageWithLeaves(
+      leaves: const [
+        PeLeafSpec(
+          languageId: 1033,
+          fileVersion: [10, 0, 26100, 8875],
+          tables: [
+            PeTableSpec('040904B0', {'ProductName': 'Remote Desktop'}),
+          ],
+        ),
+        PeLeafSpec(
+          languageId: 1042,
+          fileVersion: [10, 0, 26100, 8875],
+          tables: [
+            PeTableSpec('041204B0', {'ProductName': '원격 데스크톱'}),
+          ],
+        ),
+      ],
+    );
+
+    // Both an id entry and a string-named one. Resource directories sort named
+    // entries first, so directory order and the OS's choice disagree here.
+    final twoNames = buildPeImageWithLeaves(
+      leaves: const [
+        PeLeafSpec(
+          resourceKey: PeResourceId(1),
+          fileVersion: [1, 0, 0, 0],
+          tables: [
+            PeTableSpec('040904B0', {'ProductName': 'From id 1'}),
+          ],
+        ),
+        PeLeafSpec(
+          resourceKey: PeResourceName('VS_VERSION_INFO'),
+          fileVersion: [2, 0, 0, 0],
+          tables: [
+            PeTableSpec('040904B0', {'ProductName': 'From the named entry'}),
+          ],
+        ),
+      ],
+    );
+
+    test('exposes every language under one name entry', () {
+      final resources = parsePeVersionResources(twoLanguages);
+
+      expect(resources, hasLength(2));
+      expect(resources.map((resource) => resource.languageId), [1033, 1042]);
+      expect(resources[0].value('ProductName'), 'Remote Desktop');
+      expect(resources[1].value('ProductName'), '원격 데스크톱');
+      expect(
+        resources
+            .map((resource) => resource.stringTables.single.languageCodePage),
+        ['040904B0', '041204B0'],
+      );
+    });
+
+    test('exposes both a named entry and an id entry', () {
+      final resources = parsePeVersionResources(twoNames);
+
+      expect(resources, hasLength(2));
+      // Directory order: named before id.
+      expect(resources.map((resource) => resource.resourceName),
+          ['VS_VERSION_INFO', '#1']);
+      expect(resources[0].fixedFileVersion, '2.0.0.0');
+      expect(resources[1].fixedFileVersion, '1.0.0.0');
+    });
+
+    test('the single-resource API prefers id 1 over directory order', () {
+      // GetFileVersionInfo looks up id 1, so the OS view and the image view stay
+      // on the same leaf instead of diverging on entry order alone.
+      final resource = parsePeVersionResource(twoNames);
+
+      expect(resource!.resourceName, '#1');
+      expect(resource.value('ProductName'), 'From id 1');
+    });
+
+    test('the single-resource API falls back to the first leaf', () {
+      final resource = parsePeVersionResource(
+          buildPeImage(resourceKey: const PeResourceName('VS_VERSION_INFO')));
+
+      expect(resource!.resourceName, 'VS_VERSION_INFO');
+    });
+
+    test('the single-resource API takes the first language of the chosen entry',
+        () {
+      final resource = parsePeVersionResource(twoLanguages);
+
+      expect(resource!.languageId, 1033);
+    });
+
+    test('selectPeVersionResource is null for an empty list', () {
+      expect(selectPeVersionResource(const []), isNull);
+    });
+
+    test('the plural API is empty rather than null when nothing is readable',
+        () {
+      expect(parsePeVersionResources(Uint8List(0)), isEmpty);
+      expect(
+          parsePeVersionResources(buildPeImage(resourceTypeId: 24)), isEmpty);
+    });
+
+    test('skips a corrupt leaf instead of losing its siblings', () {
+      final resources = parsePeVersionResources(
+        buildPeImageWithLeaves(
+          leaves: const [
+            // Unusable: its data entry claims a payload far past the section.
+            PeLeafSpec(languageId: 1033, dataEntrySizeOverride: 0x100000),
+            PeLeafSpec(languageId: 1042),
+          ],
+        ),
+      );
+
+      expect(resources, hasLength(1));
+      expect(resources.single.languageId, 1042);
+      expect(resources.single.value('ProductName'), 'FileZilla');
+    });
+
+    test('is empty when every leaf is corrupt', () {
+      final resources = parsePeVersionResources(
+        buildPeImageWithLeaves(
+          leaves: const [
+            PeLeafSpec(languageId: 1033),
+            PeLeafSpec(languageId: 1042),
+          ],
+          dataEntrySizeOverride: 0x100000,
+        ),
+      );
+
+      expect(resources, isEmpty);
+    });
+
+    test('reads every leaf through the windowed file path too', () async {
+      final tempDir = Directory.systemTemp.createTempSync('flutter_bin_pe');
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final file = File('${tempDir.path}${Platform.pathSeparator}multi.exe')
+        ..writeAsBytesSync(twoLanguages);
+
+      final resources = await readPeVersionResources(file.path);
+
+      expect(resources.map((resource) => resource.languageId), [1033, 1042]);
+      expect((await readPeVersionResource(file.path))!.languageId, 1033);
+    });
+  });
+
   group('PeVersionResource', () {
     test('value() returns null for a key no table carries', () {
       final resource = parsePeVersionResource(buildPeImage())!;

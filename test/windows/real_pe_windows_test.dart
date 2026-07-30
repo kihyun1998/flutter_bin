@@ -34,6 +34,23 @@ void main() {
     expect(resource.toBinaryFileMetadata().version.split('.'), hasLength(3));
   });
 
+  test('a real binary carries exactly one version leaf', () async {
+    // Stock Windows binaries ship a single RT_VERSION leaf; the plural API must
+    // agree with the singular one on them.
+    final path = '$system32\\notepad.exe';
+    if (!File(path).existsSync()) {
+      markTestSkipped('notepad.exe not present');
+      return;
+    }
+
+    final resources = await readPeVersionResources(path);
+    final selected = await readPeVersionResource(path);
+
+    expect(resources, hasLength(1));
+    expect(selected!.resourceName, resources.single.resourceName);
+    expect(selected.languageId, resources.single.languageId);
+  });
+
   test('image view does not follow MUI satellite resources', () async {
     final path = '$system32\\mstsc.exe';
     if (!File(path).existsSync()) {

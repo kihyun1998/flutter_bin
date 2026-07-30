@@ -15,4 +15,9 @@ library;
 export 'models/binary_file_metadata.dart';
 export 'models/pe_version_resource.dart';
 export 'src/windows/pe_version_reader.dart'
-    show readPeVersionResource, parsePeVersionResource;
+    show
+        readPeVersionResource,
+        readPeVersionResources,
+        parsePeVersionResource,
+        parsePeVersionResources,
+        selectPeVersionResource;
