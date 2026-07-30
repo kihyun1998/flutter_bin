@@ -1,5 +1,12 @@
 # Method-channel contract
 
+> **Historical — describes the architecture before 3.0.0.** flutter_bin is a
+> pure-Dart package now: the method channel, the Windows C++ plugin and the macOS
+> Swift plugin were removed in 3.0.0 (see the CHANGELOG). Windows reads the version
+> resource through `dart:ffi` or by parsing the PE image (ADR-0004), and macOS
+> parses `Info.plist` in Dart. The **metadata key names** below are still the ones
+> `BinaryFileMetadata` exposes, which is why this document is kept.
+
 The `flutter_bin` plugin talks to its platform implementations over a single
 `MethodChannel` named `flutter_bin`. This document is the human-readable contract
 that the Dart, Windows (C++), and macOS (Swift) sides must all agree on.
