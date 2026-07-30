@@ -14,6 +14,8 @@ A pure-Dart package to retrieve metadata from binary files (executable files) on
   - Legal copyright
   - Original filename
   - Company name
+- Read the PE version resource straight out of the image — including binaries the
+  Win32 version APIs report as having none ([Two Views of a Windows Binary](#two-views-of-a-windows-binary))
 - Easy integration with file pickers
 
 ## Getting Started
@@ -22,7 +24,7 @@ Add the package to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  flutter_bin: ^3.0.0
+  flutter_bin: ^3.1.0
 ```
 
 ## Usage
