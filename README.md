@@ -143,6 +143,7 @@ if (resource != null) {
 | String-named `RT_VERSION` | Not readable | Readable |
 | Fields | The six in the table above | Resource name, language id, four-part file/product versions, every string table with every key |
 | Host platform | Windows only | Any (pure Dart) |
+| File I/O | Delegated to `version.dll` | Two windowed reads: headers, then the resource section |
 
 The views agree for most binaries and disagree where MUI is involved:
 `C:\Windows\System32\mstsc.exe` reports `originalFilename` as `mstsc.exe.mui`

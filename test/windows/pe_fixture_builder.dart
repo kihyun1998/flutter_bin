@@ -9,6 +9,29 @@ library;
 
 import 'dart:typed_data';
 
+/// How the `RT_VERSION` entry is named in the resource directory.
+///
+/// The distinction is the point of these fixtures: the Win32 version APIs find
+/// [PeResourceId] entries only, so [PeResourceName] ones read as having no
+/// version info at all.
+sealed class PeResourceKey {
+  const PeResourceKey();
+}
+
+/// A numeric entry, e.g. the conventional `1`.
+final class PeResourceId extends PeResourceKey {
+  const PeResourceId(this.value);
+
+  final int value;
+}
+
+/// A name-string entry, e.g. `VS_VERSION_INFO`.
+final class PeResourceName extends PeResourceKey {
+  const PeResourceName(this.value);
+
+  final String value;
+}
+
 /// One `StringFileInfo` table to emit.
 class PeTableSpec {
   const PeTableSpec(this.languageCodePage, this.values);
@@ -37,14 +60,15 @@ const int _fileAlignment = 0x200;
 
 /// Builds a PE image whose `.rsrc` section holds one version resource.
 ///
-/// [resourceName] is either an `int` id (the conventional `1`) or a `String`
-/// name — the case this package exists to read. [resourceTypeId] defaults to
-/// `RT_VERSION`; pass another id to build an image with no version resource at
-/// all. A null [fileVersion] omits `VS_FIXEDFILEINFO`. [rootLengthOverride]
-/// corrupts the root node's `wLength`, and [dataEntrySizeOverride] lies about the
-/// resource size, so the reader's bounds handling can be exercised.
+/// [resourceKey] names the `RT_VERSION` entry — [PeResourceId] for the
+/// conventional numeric id, [PeResourceName] for the string-named case this
+/// package exists to read. [resourceTypeId] defaults to `RT_VERSION`; pass
+/// another id to build an image with no version resource at all. A null
+/// [fileVersion] omits `VS_FIXEDFILEINFO`. [rootLengthOverride] corrupts the root
+/// node's `wLength`, and [dataEntrySizeOverride] lies about the resource size, so
+/// the reader's bounds handling can be exercised.
 Uint8List buildPeImage({
-  Object resourceName = 1,
+  PeResourceKey resourceKey = const PeResourceId(1),
   int resourceTypeId = 16,
   int languageId = 1033,
   bool pe32Plus = true,
@@ -64,7 +88,7 @@ Uint8List buildPeImage({
 
   final rsrc = includeResourceSection
       ? _buildResourceSection(
-          resourceName: resourceName,
+          resourceKey: resourceKey,
           resourceTypeId: resourceTypeId,
           languageId: languageId,
           versionBlock: versionBlock,
@@ -207,7 +231,7 @@ Uint8List _translationValue(List<PeTableSpec> tables) {
 /// Three levels of `IMAGE_RESOURCE_DIRECTORY` (type -> name -> language), one
 /// `IMAGE_RESOURCE_DATA_ENTRY`, an optional name string, then the payload.
 Uint8List _buildResourceSection({
-  required Object resourceName,
+  required PeResourceKey resourceKey,
   required int resourceTypeId,
   required int languageId,
   required Uint8List versionBlock,
@@ -219,8 +243,10 @@ Uint8List _buildResourceSection({
   const langDirOffset = nameDirOffset + dirSize;
   const dataEntryOffset = langDirOffset + dirSize;
 
-  final nameString =
-      resourceName is String ? _resourceNameString(resourceName) : null;
+  final nameString = switch (resourceKey) {
+    PeResourceId() => null,
+    PeResourceName(:final value) => _resourceNameString(value),
+  };
   final nameStringOffset = dataEntryOffset + 16;
   final payloadOffset = _align4(nameStringOffset + (nameString?.length ?? 0));
 
@@ -243,7 +269,10 @@ Uint8List _buildResourceSection({
       named: false, isLeafPointer: false);
   writeDirectory(
     nameDirOffset,
-    nameString == null ? resourceName as int : (0x80000000 | nameStringOffset),
+    switch (resourceKey) {
+      PeResourceId(:final value) => value,
+      PeResourceName() => 0x80000000 | nameStringOffset,
+    },
     langDirOffset,
     named: nameString != null,
     isLeafPointer: false,

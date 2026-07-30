@@ -12,7 +12,8 @@ void main() {
       // The FileZilla 3.66.5 shape: windres emitted the version resource under a
       // name string, so the Win32 version APIs — which look up the numeric id 1
       // only — report the file as having no version info at all.
-      final image = buildPeImage(resourceName: 'VS_VERSION_INFO');
+      final image =
+          buildPeImage(resourceKey: const PeResourceName('VS_VERSION_INFO'));
 
       final resource = parsePeVersionResource(image);
 
@@ -38,7 +39,8 @@ void main() {
     });
 
     test('reads the conventional numeric resource id', () {
-      final resource = parsePeVersionResource(buildPeImage(resourceName: 1));
+      final resource = parsePeVersionResource(
+          buildPeImage(resourceKey: const PeResourceId(1)));
 
       expect(resource, isNotNull);
       expect(resource!.resourceName, '#1');
@@ -234,8 +236,8 @@ void main() {
           ..writeAsBytesSync(bytes);
 
     test('reads a file from disk on any host platform', () async {
-      final file =
-          write('named.exe', buildPeImage(resourceName: 'VS_VERSION_INFO'));
+      final file = write('named.exe',
+          buildPeImage(resourceKey: const PeResourceName('VS_VERSION_INFO')));
 
       final resource = await readPeVersionResource(file.path);
 
@@ -259,6 +261,41 @@ void main() {
       final file = write('notes.txt', Uint8List.fromList('hello'.codeUnits));
 
       expect(await readPeVersionResource(file.path), isNull);
+    });
+
+    test('reads only the headers and the resource section', () async {
+      // The reader takes two windowed reads rather than the whole file, so bulk
+      // appended after the resource section must not affect the result — or the
+      // cost of getting it.
+      final image = buildPeImage();
+      final padded = Uint8List(image.length + 4 * 1024 * 1024)
+        ..setRange(0, image.length, image);
+      final file = write('padded.exe', padded);
+
+      final resource = await readPeVersionResource(file.path);
+
+      expect(await file.length(), greaterThan(4 * 1024 * 1024));
+      expect(resource, isNotNull);
+      expect(resource!.fixedFileVersion, '3.66.5.0');
+      expect(resource.value('CompanyName'), 'FileZilla Project');
+    });
+
+    test('matches the in-memory parser on malformed images', () async {
+      final truncated = buildPeImage();
+      final cases = {
+        'truncated.exe':
+            Uint8List.sublistView(truncated, 0, truncated.length - 400),
+        'oversized.exe': buildPeImage(dataEntrySizeOverride: 0x100000),
+        'no-version.exe': buildPeImage(resourceTypeId: 24),
+        'no-resource.exe': buildPeImage(includeResourceSection: false),
+      };
+
+      for (final entry in cases.entries) {
+        final file = write(entry.key, entry.value);
+        expect(await readPeVersionResource(file.path), isNull,
+            reason: entry.key);
+        expect(parsePeVersionResource(entry.value), isNull, reason: entry.key);
+      }
     });
   });
 }
