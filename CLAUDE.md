@@ -2,14 +2,18 @@
 
 ## Agent skills
 
-### Issue tracker
+- Before creating, reading, labelling or closing an issue, read `docs/agents/issue-tracker.md`.
+- Before applying a triage label, read `docs/agents/triage-labels.md`.
+- Before exploring the codebase, read `docs/agents/domain.md`.
 
-Issues and PRDs live as GitHub issues in `kihyun1998/flutter_bin`, managed via the `gh` CLI. External PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
+## Territory map
 
-### Triage labels
+The map's hub is [`docs/map/README.md`](docs/map/README.md).
 
-Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+- Before designing a change, open the territories it touches and walk their `## Blast radius` and `## Cross-cutting invariants`.
+- After the change lands, update the notes it made false, and add any new why, trap or measured value.
+- When a fix reveals a fact, ask whether it holds at every site that shares the assumption. If it does, the fix lands with an invariant note under `docs/map/invariant/`.
 
-### Domain docs
+## Comments
 
-Single-context: one `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+A comment says what the code is. Why it is this way, what it deliberately leaves out, the trap and the measured value go to the territory note under `docs/map/`. Where none seems to hold it, search the folder and the code symbol first; only then start a new note, named for what the system does there, not for the file. History goes to the commit message. Comments written before this rule still carry the rest: never delete one whose content the map does not yet hold — move it first (`decant`).
