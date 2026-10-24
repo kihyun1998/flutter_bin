@@ -12,10 +12,12 @@ From the files:
 - `.pubignore` keeps `docs/`, `CLAUDE.md`, `CODE.md`/`codemd*`, and most of `example/windows` and `example/macos` out of the archive. `docs/map/` is excluded as part of `docs/`.
 - CI (`.github/workflows/ci.yml`): on Ubuntu, Windows and macOS it runs `dart format --set-exit-if-changed`, `dart analyze` and `dart test`. `@TestOn` annotations route each platform's real-binary tests to its runner. A second job builds the example on Windows and macOS. Flutter is pinned through `FLUTTER_VERSION`.
 - No lockfile is committed. Dependencies are resolved from `pubspec.yaml` alone (#35).
+- Dependabot (`.github/dependabot.yml`): root pub weekly with `increase-if-necessary`, ungrouped; `/example` pub and `github-actions` monthly, each as one group; every PR labelled `needs-triage`. Without a lockfile, `increase-if-necessary` opens a root PR only when a release falls outside the caret, which at `0.x` means every minor. Such a PR raises the floor for consumers, so each one stays a single decision. Nothing ships from `example/`, so its PRs are grouped (#35). The CI Flutter pin (`FLUTTER_VERSION`) is an env value, not an action version, so Dependabot never bumps it.
 
 ## Code
 - `pubspec.yaml`, `.pubignore`, `CHANGELOG.md`, `README.md`, `analysis_options.yaml`
 - `.github/workflows/ci.yml — jobs.test, jobs.example`
+- `.github/dependabot.yml — updates`
 
 ## Reference behaviour
 **None.**
@@ -30,4 +32,5 @@ From the files:
 - [Platform dispatch](platform-dispatch.md) and [PE image view](pe-image-view.md): they own the two exported libraries, so any change to their public symbols is a release decision.
 
 ## Known holes / open
-- Dependabot is not set up yet. Tracked: #35 (root pub weekly per dependency with `increase-if-necessary`, plus grouped monthly runs for `/example` and Actions).
+- Dependabot's first run is unobserved. A configuration error shows only in the repository's Dependabot status after merge to the default branch (#35).
+- Dependabot's support for `versioning-strategy` on `pub` rests on GitHub's options reference ("Supported by: … `pub` …"), read as a summary. It needs confirming against the first real root PR.
