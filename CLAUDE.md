@@ -4,7 +4,7 @@
 
 ### Issue tracker
 
-Issues and PRDs live as GitHub issues in `kihyun1998/flutter_bin`, managed via the `gh` CLI. External PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
+Issues and specs live as GitHub issues in `kihyun1998/flutter_bin`, managed via the `gh` CLI. External PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
