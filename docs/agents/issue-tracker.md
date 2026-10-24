@@ -14,6 +14,20 @@ Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all o
 
 Infer the repo from `git remote -v`; `gh` does this automatically when run inside a clone.
 
+### In a Claude Code cloud session, use REST
+
+GitHub GraphQL returns `HTTP 403` there, and every `gh issue …` and `gh label …` command above goes through it. Use `gh api`, which fills `{owner}/{repo}` from the clone:
+
+| Operation | REST |
+|---|---|
+| Create | `gh api repos/{owner}/{repo}/issues -f title="..." -f body="..."` |
+| Read | `gh api repos/{owner}/{repo}/issues/<n>`, then `.../issues/<n>/comments` |
+| List | `gh api 'repos/{owner}/{repo}/issues?state=open&labels=<label>' --jq '[.[] \| select(.pull_request \| not) \| {number, title, labels: [.labels[].name]}]'` (the endpoint returns PRs too) |
+| Comment | `gh api repos/{owner}/{repo}/issues/<n>/comments -f body="..."` |
+| Add / remove label | `gh api repos/{owner}/{repo}/issues/<n>/labels -f 'labels[]=<label>'` / `gh api -X DELETE repos/{owner}/{repo}/issues/<n>/labels/<label>` |
+| Close | `gh api -X PATCH repos/{owner}/{repo}/issues/<n> -f state=closed -f state_reason=completed`, after the comment |
+| Create a label | `gh api repos/{owner}/{repo}/labels -f name=<label> -f color=<hex> -f description="..."` |
+
 ## Pull requests as a triage surface
 
 **PRs as a request surface: no.** _(Set to `yes` if this repo treats external PRs as feature requests; `/triage` reads this flag.)_
