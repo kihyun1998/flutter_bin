@@ -11,7 +11,7 @@ environment:
 
 dependencies:
   ffi: ^2.1.0
-  plist_parser: ^0.2.7
+  plist_parser: ^0.3.0
   path: ^1.9.1
 
 dev_dependencies:
