@@ -34,13 +34,39 @@ void main() {
       );
     });
 
-    test('parity: a deep path inside a bundle reproduces the Swift quirk', () {
-      // The Swift code deletes the last two path components whenever "Contents"
-      // appears anywhere, so a deep executable path yields a doubled Contents.
-      // Locked in to guarantee byte-for-byte parity with the old plugin.
+    test('a path inside the bundle resolves to the bundle root plist', () {
       expect(
         resolveInfoPlistPath('/Applications/Foo.app/Contents/MacOS/Foo'),
-        '/Applications/Foo.app/Contents/Contents/Info.plist',
+        '/Applications/Foo.app/Contents/Info.plist',
+      );
+      expect(
+        resolveInfoPlistPath('/Applications/Foo.app/Contents'),
+        '/Applications/Foo.app/Contents/Info.plist',
+      );
+      expect(
+        resolveInfoPlistPath(
+            '/Applications/Foo.app/Contents/Resources/en.lproj/x.strings'),
+        '/Applications/Foo.app/Contents/Info.plist',
+      );
+    });
+
+    test('a Contents folder above the bundle is not part of the bundle', () {
+      expect(
+        resolveInfoPlistPath('/Users/me/Contents/Foo.app'),
+        '/Users/me/Contents/Foo.app/Contents/Info.plist',
+      );
+    });
+
+    test('a nested .app resolves to the innermost bundle', () {
+      expect(
+        resolveInfoPlistPath('/Applications/Outer.app/Contents/Helper.app'),
+        '/Applications/Outer.app/Contents/Helper.app/Contents/Info.plist',
+      );
+      expect(
+        resolveInfoPlistPath('/Applications/Outer.app/Contents/Frameworks/'
+            'Helper.app/Contents/MacOS/Helper'),
+        '/Applications/Outer.app/Contents/Frameworks/Helper.app/Contents/'
+        'Info.plist',
       );
     });
   });

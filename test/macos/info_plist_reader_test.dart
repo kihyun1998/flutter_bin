@@ -57,6 +57,13 @@ void main() {
     expect(version, '1.2.3');
   });
 
+  test('an executable path inside the bundle reads the bundle plist', () async {
+    final bundle = bundleFrom('full_binary.plist');
+
+    expect(await plugin.getBinaryFileVersion('$bundle/Contents/MacOS/test'),
+        '1.2.3');
+  });
+
   // Writes raw [bytes] as the bundle's Info.plist and returns the bundle root.
   String bundleFromBytes(List<int> bytes) {
     final tmp = Directory.systemTemp.createTempSync('flutter_bin_macos');
