@@ -3,8 +3,11 @@ library;
 
 import 'dart:io';
 
+import 'package:flutter_bin/pe.dart';
 import 'package:flutter_bin/src/windows/flutter_bin_ffi_windows.dart';
 import 'package:test/test.dart';
+
+import 'pe_fixture_builder.dart';
 
 /// End-to-end checks that the FFI path actually reads a real PE version
 /// resource. These run only on Windows (the `@TestOn('windows')` annotation
@@ -14,20 +17,46 @@ void main() {
   final kernel32 = '$systemRoot\\System32\\kernel32.dll';
   final platform = FlutterBinFfiWindows();
 
-  final semver = RegExp(r'^\d+\.\d+\.\d+$');
+  final fourPart = RegExp(r'^\d+\.\d+\.\d+\.\d+$');
 
-  test('reads a 3-part semantic version from a system DLL', () async {
+  test('reads the four-part file version from a system DLL', () async {
     final version = await platform.getBinaryFileVersion(kernel32);
     expect(version, isNotNull);
-    expect(version, matches(semver),
-        reason: 'expected major.minor.build, got "$version"');
+    expect(version, matches(fourPart),
+        reason: 'expected major.minor.build.revision, got "$version"');
+  });
+
+  test('reports the same version as the fixed file version in the image',
+      () async {
+    final image = await readPeVersionResource(kernel32);
+    expect(image, isNotNull);
+    expect(
+        await platform.getBinaryFileVersion(kernel32), image!.fixedFileVersion);
+    expect((await platform.getBinaryFileMetadata(kernel32)).version,
+        image.fixedFileVersion);
+  });
+
+  test('reads the file version, not the product version', () async {
+    final tempDir = Directory.systemTemp.createTempSync('flutter_bin_test');
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final image = File('${tempDir.path}\\versions.dll')
+      ..writeAsBytesSync(buildPeImage(
+          fileVersion: [1, 2, 3, 4], productVersion: [5, 6, 7, 8]));
+
+    // The two fixed versions differ, so reading the wrong one is observable.
+    final resource = await readPeVersionResource(image.path);
+    expect(resource!.fixedProductVersion, isNot(resource.fixedFileVersion));
+
+    expect(await platform.getBinaryFileVersion(image.path), '1.2.3.4');
+    expect(
+        (await platform.getBinaryFileMetadata(image.path)).version, '1.2.3.4');
   });
 
   test('reads metadata strings from a system DLL', () async {
     final metadata = await platform.getBinaryFileMetadata(kernel32);
 
     // The version field mirrors the standalone version call.
-    expect(metadata.version, matches(semver));
+    expect(metadata.version, matches(fourPart));
     // kernel32 carries these fields; assert non-empty rather than exact text
     // to stay locale-independent.
     expect(metadata.productName, isNotEmpty);
@@ -67,6 +96,6 @@ void main() {
     File(kernel32).copySync(copied);
 
     final version = await platform.getBinaryFileVersion(copied);
-    expect(version, matches(semver));
+    expect(version, matches(fourPart));
   });
 }

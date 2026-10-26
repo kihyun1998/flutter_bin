@@ -14,17 +14,8 @@ List<int> fixedVersionParts(int fileVersionMS, int fileVersionLS) => [
       fileVersionLS & 0xFFFF,
     ];
 
-/// Formats a fixed file-info version as a semantic `major.minor.build`.
-///
-/// The Windows file version is `major.minor.build.revision`; the trailing
-/// revision is dropped so the value matches semver across platforms (see #5 /
-/// ADR-0003). Use [formatFullVersion] when the revision matters.
-String formatFixedVersion(int fileVersionMS, int fileVersionLS) =>
-    fixedVersionParts(fileVersionMS, fileVersionLS).take(3).join('.');
-
-/// Formats a fixed file-info version with all four components, revision
-/// included — the version as the resource states it, before the semver
-/// truncation [formatFixedVersion] applies.
+/// Formats a fixed file-info version with all four components,
+/// `major.minor.build.revision` — the version as the resource states it.
 String formatFullVersion(int fileVersionMS, int fileVersionLS) =>
     fixedVersionParts(fileVersionMS, fileVersionLS).join('.');
 

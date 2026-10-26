@@ -74,23 +74,16 @@ class PeVersionResource {
   /// Maps the image view onto [BinaryFileMetadata] so callers can reuse code
   /// written against the OS-view API.
   ///
-  /// `version` is truncated to `major.minor.build` to match the cross-platform
-  /// version contract (ADR-0003); absent strings become `''`.
+  /// `version` is [fixedFileVersion], all four parts (ADR-0005); absent strings
+  /// become `''`.
   BinaryFileMetadata toBinaryFileMetadata() {
     return BinaryFileMetadata(
-      version: _semanticVersion(),
+      version: fixedFileVersion,
       productName: value('ProductName') ?? '',
       fileDescription: value('FileDescription') ?? '',
       legalCopyright: value('LegalCopyright') ?? '',
       originalFilename: value('OriginalFilename') ?? '',
       companyName: value('CompanyName') ?? '',
     );
-  }
-
-  String _semanticVersion() {
-    if (fixedFileVersion.isEmpty) return '';
-    final parts = fixedFileVersion.split('.');
-    if (parts.length <= 3) return fixedFileVersion;
-    return parts.take(3).join('.');
   }
 }

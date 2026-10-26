@@ -460,8 +460,7 @@ PeVersionResource _parseVersionBlock(
   if (valueLength >= 24 &&
       cursor + 24 <= end &&
       data.getUint32(cursor, Endian.little) == _fixedFileInfoSignature) {
-    // The four-part version as the resource states it;
-    // PeVersionResource.toBinaryFileMetadata applies the semver truncation.
+    // The four-part version as the resource states it.
     fileVersion = formatFullVersion(
       data.getUint32(cursor + 8, Endian.little),
       data.getUint32(cursor + 12, Endian.little),

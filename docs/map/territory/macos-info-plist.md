@@ -4,7 +4,7 @@
 Reads version and metadata on macOS by resolving a path to the bundle's `Contents/Info.plist` and parsing it in Dart, either binary `bplist00` or XML. There is no FFI and no native code.
 
 ## Governing decisions
-- [ADR-0003](../../adr/0003-version-string-is-semver.md): it assumes `CFBundleShortVersionString` is already semver and passes it through unchanged (see [Version is semver](../invariant/version-is-semver.md)).
+- [ADR-0005](../../adr/0005-version-is-returned-as-the-source-states-it.md): it passes `CFBundleShortVersionString` through unchanged, by decision (see [Version is as the source states it](../invariant/version-is-as-the-source-states-it.md)). ADR-0003 had assumed the value was already semver; it is free text.
 - [ADR-0002](../../adr/0002-dart-enum-is-canonical-channel-key-source.md) governs the map keys.
 - Path resolution no longer matches the removed Swift plugin (maintainer judgement, 2026-10-26, #36). The Swift resolver, which the 3.0.0 port copied, dropped the last two components whenever a `Contents` segment appeared anywhere in the path. That broke the README's `Contents/MacOS/<exe>` form, any bundle under a folder named `Contents`, and nested helper apps, and `Outer.app/Contents/Helper.app` silently returned the outer app's plist. The maintainer was shown a 13-input comparison of that rule against the innermost-`.app` rule: every input that resolved correctly before resolves identically after. They chose to drop parity and ship it as 3.1.1, a patch. The call did not cover non-`.app` bundle types.
 
@@ -26,7 +26,7 @@ From the source:
 - Apple's `Info.plist` key documentation (`CFBundle*`), which is binding and summarized (`docs/agents/thegraph.md`). There is no pinned copy in the repo.
 
 ## Cross-cutting invariants
-- [Version is semver](../invariant/version-is-semver.md)
+- [Version is as the source states it](../invariant/version-is-as-the-source-states-it.md)
 - [Metadata key set](../invariant/metadata-key-set.md)
 - [Absent reads as empty](../invariant/absent-reads-as-empty.md)
 
@@ -36,4 +36,3 @@ From the source:
 
 ## Known holes / open
 - **Only `.app` bundles are recognised.** A `.appex`, `.bundle` or `.framework` path has no `.app` segment, so it is treated as a bundle root and gets `Contents/Info.plist` appended. That is wrong for a framework, whose plist is under `Resources/`. A `.appex` inside an app resolves to the enclosing `.app`'s plist (2026-10-26).
-- **The version is not checked as semver.** A `CFBundleShortVersionString` of `1.2.3.4` or `2.0` is returned as-is. ADR-0003 assumes Apple convention makes it semver. The maintainer was not aware of the gap (maintainer, 2026-10-24).

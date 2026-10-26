@@ -31,7 +31,7 @@ void main() {
     expect(resource.stringTables, isNotEmpty);
     expect(resource.fixedFileVersion, isNotEmpty);
     expect(resource.value('CompanyName'), contains('Microsoft'));
-    expect(resource.toBinaryFileMetadata().version.split('.'), hasLength(3));
+    expect(resource.toBinaryFileMetadata().version, resource.fixedFileVersion);
   });
 
   test('a real binary carries exactly one version leaf', () async {

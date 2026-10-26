@@ -27,7 +27,7 @@ From the source:
 **None.**
 
 ## Cross-cutting invariants
-- [Version is semver](../invariant/version-is-semver.md)
+- [Version is as the source states it](../invariant/version-is-as-the-source-states-it.md)
 - [Metadata key set](../invariant/metadata-key-set.md)
 - [Absent reads as empty](../invariant/absent-reads-as-empty.md)
 

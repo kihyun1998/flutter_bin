@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_bin/src/macos/flutter_bin_macos.dart';
@@ -72,6 +73,20 @@ void main() {
     Directory('$bundle/Contents').createSync(recursive: true);
     File('$bundle/Contents/Info.plist').writeAsBytesSync(bytes);
     return bundle;
+  }
+
+  for (final shortVersion in ['1.2.3.4', '2.0', '1.2.3-beta']) {
+    test('returns CFBundleShortVersionString $shortVersion unchanged',
+        () async {
+      final bundle = bundleFromBytes(utf8.encode(
+          '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict>'
+          '<key>CFBundleShortVersionString</key><string>$shortVersion</string>'
+          '</dict></plist>'));
+
+      expect(await plugin.getBinaryFileVersion(bundle), shortVersion);
+      expect(
+          (await plugin.getBinaryFileMetadata(bundle)).version, shortVersion);
+    });
   }
 
   test('a corrupt binary plist yields null version and empty metadata',

@@ -23,7 +23,7 @@ From the files:
 **None.**
 
 ## Cross-cutting invariants
-- [Version is semver](../invariant/version-is-semver.md): the README and CHANGELOG state the 3-part contract to consumers.
+- [Version is as the source states it](../invariant/version-is-as-the-source-states-it.md): the README and CHANGELOG state the contract to consumers.
 
 ## Blast radius
 - [Example app](example-app.md): CI's `example` job builds it, so a dependency or API change that breaks the example turns CI red.

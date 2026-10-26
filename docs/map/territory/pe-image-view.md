@@ -5,7 +5,7 @@ A pure-Dart parser that reads the version resource out of a PE file itself. It a
 
 ## Governing decisions
 - [ADR-0004](../../adr/0004-pe-image-view-is-a-separate-api.md): a separate API and never a fallback. The singular API prefers id `1`. File reads are windowed.
-- [ADR-0003](../../adr/0003-version-string-is-semver.md): `toBinaryFileMetadata` truncates to 3 parts. `fixedFileVersion` keeps 4, which is the "separate, explicitly-named field" ADR-0003 anticipated (ADR-0004 Consequences).
+- [ADR-0005](../../adr/0005-version-is-returned-as-the-source-states-it.md): `toBinaryFileMetadata` returns `fixedFileVersion` unchanged, all four parts. Until ADR-0005 it truncated to 3 parts under ADR-0003.
 
 ## Design model
 From ADR-0004 and the source:
@@ -19,7 +19,7 @@ From ADR-0004 and the source:
 ## Code
 - `lib/pe.dart` exports `readPeVersionResource, readPeVersionResources, parsePeVersionResource, parsePeVersionResources, selectPeVersionResource`.
 - `lib/src/windows/pe_version_reader.dart — readPeVersionResources, _readFromHandle, _readAt, _parseHeaders, _readSections, _sectionFor, _rvaToOffset, _readVersionLeaves, _readLeaf, _entries, _readResourceName, _parseVersionBlock, _parseStringTables, _parseStringValues, _within`
-- `lib/models/pe_version_resource.dart — PeStringTable, PeVersionResource, PeVersionResource.value, PeVersionResource.toBinaryFileMetadata, PeVersionResource._semanticVersion`
+- `lib/models/pe_version_resource.dart — PeStringTable, PeVersionResource, PeVersionResource.value, PeVersionResource.toBinaryFileMetadata`
 - Tests: `test/windows/pe_version_reader_test.dart` (any host, builds images with `test/windows/pe_fixture_builder.dart`) and `test/windows/real_pe_windows_test.dart` (`@TestOn('windows')`).
 
 ## Reference behaviour
@@ -27,7 +27,7 @@ From ADR-0004 and the source:
 - FileZilla 3.66.5 is the shipped example of a string-named `RT_VERSION` (ADR-0004). It is not a fixture in the repo.
 
 ## Cross-cutting invariants
-- [Version is semver](../invariant/version-is-semver.md)
+- [Version is as the source states it](../invariant/version-is-as-the-source-states-it.md)
 - [Absent reads as empty](../invariant/absent-reads-as-empty.md)
 
 ## Blast radius

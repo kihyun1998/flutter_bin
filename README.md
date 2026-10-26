@@ -99,7 +99,7 @@ flutter_bin extracts the following metadata from binary files:
 
 | Field | Description | Windows Source | macOS Source |
 |-------|-------------|----------------|--------------|
-| version | Semantic version (e.g., 1.2.3) | FileVersion (major.minor.build) | CFBundleShortVersionString |
+| version | The version as the file states it (e.g., 10.0.26100.9711 on Windows, 3.1.4 on macOS) | Fixed file version from VS_FIXEDFILEINFO (major.minor.build.revision) | CFBundleShortVersionString, unchanged |
 | productName | The product name | ProductName | CFBundleName |
 | fileDescription | Description of the file | FileDescription | CFBundleGetInfoString |
 | legalCopyright | Copyright information | LegalCopyright | NSHumanReadableCopyright |

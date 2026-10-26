@@ -1,3 +1,18 @@
+## 4.0.0 (unreleased)
+
+* **BREAKING**: `version` is returned as the source states it
+  ([ADR-0005](docs/adr/0005-version-is-returned-as-the-source-states-it.md),
+  superseding ADR-0003; #37).
+  * Windows: `getBinaryFileVersion`, `getBinaryFileMetadata().version` and
+    `PeVersionResource.toBinaryFileMetadata().version` return all four parts of
+    the file version. `6.2.26100` becomes `6.2.26100.8521`. The revision had
+    been dropped since 2.0.0.
+  * macOS: unchanged. `CFBundleShortVersionString` was always returned as-is;
+    the README wrongly described it as a three-part semantic version (`2.0`,
+    `1.2.3.4` and `1.2.3-beta` are returned as written).
+  * `version` no longer has one shape across platforms. Parse it yourself to
+    compare versions.
+
 ## 3.1.1
 
 * macOS: a path inside an app bundle now resolves to that bundle's
