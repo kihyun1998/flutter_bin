@@ -12,7 +12,7 @@ The territory map. A comment's why, trap and measured value go to a note here. N
 `## Blast radius` is a checklist. An entry with nothing to do is a correct outcome.
 
 ## The repo in one paragraph
-flutter_bin is a pure-Dart package that reads version metadata from desktop binaries. On Windows it gives two answers that are deliberately kept apart (ADR-0004): what the OS reports (FFI into `version.dll`) and what the image carries (a PE parser that runs on any host). On macOS it parses the bundle's `Info.plist`. Everything else throws `UnsupportedError`. The C++ and Swift plugins were removed in 3.0.0, and ADR-0001 and ADR-0002 still describe that era. The largest gap is that three cross-platform contracts (semver version, key set, empty-on-absent) are each implemented separately per reader, and nothing tests them against each other.
+flutter_bin is a pure-Dart package that reads version metadata from desktop binaries. On Windows it gives two answers that are deliberately kept apart (ADR-0004): what the OS reports (FFI into `version.dll`) and what the image carries (a PE parser that runs on any host). On macOS it parses the bundle's `Info.plist`. Everything else throws `UnsupportedError`. The C++ and Swift plugins were removed in 3.0.0, and ADR-0001 and ADR-0002 still describe that era. The largest gap is that three cross-platform contracts (version as the source states it, key set, empty-on-absent) are each implemented separately per reader. Only `version` is tested across readers, and only between the two Windows views (`test/windows/version_reader_test.dart`); nothing compares Windows with macOS.
 
 ## Territories
 - [Platform dispatch](territory/platform-dispatch.md)
@@ -24,7 +24,7 @@ flutter_bin is a pure-Dart package that reads version metadata from desktop bina
 - [Example app](territory/example-app.md)
 
 ## Cross-cutting invariants
-- [Version is semver](invariant/version-is-semver.md)
+- [Version is as the source states it](invariant/version-is-as-the-source-states-it.md)
 - [Metadata key set](invariant/metadata-key-set.md)
 - [Absent reads as empty](invariant/absent-reads-as-empty.md)
 

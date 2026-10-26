@@ -1,6 +1,6 @@
 # Version string is a semantic version across platforms
 
-Status: accepted
+Status: superseded by [ADR-0005](0005-version-is-returned-as-the-source-states-it.md)
 
 `getBinaryFileVersion` (and the `version` metadata field) previously returned a
 platform-divergent shape: Windows produced the 4-part PE file version

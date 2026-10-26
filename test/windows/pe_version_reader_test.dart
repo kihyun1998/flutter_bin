@@ -337,11 +337,12 @@ void main() {
     });
 
     test('toBinaryFileMetadata() maps onto the existing model', () {
-      final metadata =
-          parsePeVersionResource(buildPeImage())!.toBinaryFileMetadata();
+      final resource = parsePeVersionResource(buildPeImage())!;
+      final metadata = resource.toBinaryFileMetadata();
 
-      // Version is truncated to major.minor.build per ADR-0003.
-      expect(metadata.version, '3.66.5');
+      // All four parts of the fixed file version, as the resource states it.
+      expect(metadata.version, '3.66.5.0');
+      expect(metadata.version, resource.fixedFileVersion);
       expect(metadata.companyName, 'FileZilla Project');
       expect(metadata.productName, 'FileZilla');
       expect(metadata.originalFilename, 'filezilla.exe');

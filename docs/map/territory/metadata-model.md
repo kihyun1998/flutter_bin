@@ -21,7 +21,7 @@ The cross-platform result type `BinaryFileMetadata`, made of six string fields, 
 
 ## Cross-cutting invariants
 - [Metadata key set](../invariant/metadata-key-set.md)
-- [Version is semver](../invariant/version-is-semver.md)
+- [Version is as the source states it](../invariant/version-is-as-the-source-states-it.md)
 
 ## Blast radius
 - [Windows OS view](windows-os-view.md): it emits the map keys as string literals that must equal the enum's `key`.

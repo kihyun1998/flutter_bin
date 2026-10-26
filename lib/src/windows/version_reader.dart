@@ -50,7 +50,7 @@ const Map<String, String> _metadataStringFields = {
 ///
 /// This is the Dart port of `windows/flutter_bin_plugin.cpp` — the
 /// default-language (`040904B0`) lookup with a `\VarFileInfo\Translation`
-/// fallback and the semver truncation are preserved.
+/// fallback is preserved.
 class WindowsVersionReader {
   WindowsVersionReader()
       : _version = DynamicLibrary.open('version.dll'),
@@ -74,8 +74,8 @@ class WindowsVersionReader {
   late final _VerQueryValueWDart _verQueryValue;
   late final _GetFileAttributesWDart _getFileAttributes;
 
-  /// Returns the 3-part semantic version, or null when the file is missing or
-  /// carries no version resource.
+  /// Returns the four-part file version (`major.minor.build.revision`), or null
+  /// when the file is missing or carries no version resource.
   String? readVersion(String filePath) {
     return using((Arena arena) {
       final block = _loadVersionInfo(filePath, arena);
@@ -134,7 +134,7 @@ class WindowsVersionReader {
       return null;
     }
     final info = bufferOut.value.cast<_VsFixedFileInfo>().ref;
-    return formatFixedVersion(info.dwFileVersionMS, info.dwFileVersionLS);
+    return formatFullVersion(info.dwFileVersionMS, info.dwFileVersionLS);
   }
 
   // Reads a named string, trying the default `040904B0` block first and then

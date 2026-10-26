@@ -58,7 +58,8 @@ the first the directory lists — see *Consequences*.
 - `PeVersionResource.fixedFileVersion` carries all four components, which is the
   "separate, explicitly-named field" ADR-0003 anticipated; `toBinaryFileMetadata()`
   applies the ADR-0003 semver truncation so existing validation code still sees a
-  3-part `version`.
+  3-part `version`. (Amended by ADR-0005: `toBinaryFileMetadata()` no longer
+  truncates; its `version` equals `fixedFileVersion`.)
 - The parser is pure Dart, so it runs on any host and its tests execute on the
   Linux CI job. It reads only the headers and the resource section, not the file.
 - Consequence of that windowing: the file-based reader cannot follow a version
