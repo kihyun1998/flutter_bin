@@ -1,3 +1,18 @@
+## 3.1.1
+
+* macOS: a path inside an app bundle now resolves to that bundle's
+  `Info.plist`. The README has always listed
+  `/Applications/Example.app/Contents/MacOS/Example` as a valid input, but it
+  resolved to `Contents/Contents/Info.plist` and returned `null` / empty
+  metadata. The bundle root is now the innermost `.app` in the path, which also
+  fixes:
+  * a bundle under a folder named `Contents` (`/Users/me/Contents/Foo.app`),
+  * a nested helper app (`Outer.app/Contents/Helpers/Helper.app`), which
+    returned `null`, or, when directly under `Contents`, the outer app's
+    metadata.
+
+  Every path that resolved correctly in 3.1.0 resolves the same way.
+
 ## 3.1.0
 
 * Added the **PE image view**, a second way to read a Windows binary's version

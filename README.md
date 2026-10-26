@@ -24,7 +24,7 @@ Add the package to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  flutter_bin: ^3.1.0
+  flutter_bin: ^3.1.1
 ```
 
 ## Usage

@@ -11,24 +11,18 @@ final p.Context _posix = p.posix;
 
 /// Resolves the input path to the bundle's `Contents/Info.plist`.
 ///
-/// Dart port of the Swift `resolveInfoPlistPath`. When [filePath] is a `.app`
-/// bundle (extension `.app`, or any path containing `.app/`) the bundle root is
-/// located and `Contents/Info.plist` is appended; otherwise [filePath] itself
-/// is treated as the bundle root. When the path already runs through a
-/// `Contents` segment the last two components are dropped first so an
-/// already-resolved plist path round-trips instead of doubling up.
+/// The bundle root is the innermost path segment with the `.app` extension, so
+/// the bundle itself, any path inside it (`Contents/MacOS/<exe>`,
+/// `Contents/Info.plist`, ...) and a nested helper `.app` each resolve to their
+/// own bundle's plist. A path with no `.app` segment is treated as the bundle
+/// root itself.
 String resolveInfoPlistPath(String filePath) {
-  final isAppBundle =
-      _posix.extension(filePath) == '.app' || filePath.contains('.app/');
-
-  if (isAppBundle) {
-    final insideContents = _posix.split(filePath).contains('Contents');
-    final bundleRoot =
-        insideContents ? _posix.dirname(_posix.dirname(filePath)) : filePath;
-    return _posix.join(bundleRoot, 'Contents', 'Info.plist');
-  }
-
-  return _posix.join(filePath, 'Contents', 'Info.plist');
+  final segments = _posix.split(filePath);
+  final appIndex =
+      segments.lastIndexWhere((segment) => _posix.extension(segment) == '.app');
+  final bundleRoot =
+      appIndex < 0 ? filePath : _posix.joinAll(segments.take(appIndex + 1));
+  return _posix.join(bundleRoot, 'Contents', 'Info.plist');
 }
 
 /// Reads a macOS bundle's `Info.plist` in pure Dart — resolve the path, read the

@@ -6,10 +6,12 @@ Reads version and metadata on macOS by resolving a path to the bundle's `Content
 ## Governing decisions
 - [ADR-0003](../../adr/0003-version-string-is-semver.md): it assumes `CFBundleShortVersionString` is already semver and passes it through unchanged (see [Version is semver](../invariant/version-is-semver.md)).
 - [ADR-0002](../../adr/0002-dart-enum-is-canonical-channel-key-source.md) governs the map keys.
+- Path resolution no longer matches the removed Swift plugin (maintainer judgement, 2026-10-26, #36). The Swift resolver, which the 3.0.0 port copied, dropped the last two components whenever a `Contents` segment appeared anywhere in the path. That broke the README's `Contents/MacOS/<exe>` form, any bundle under a folder named `Contents`, and nested helper apps, and `Outer.app/Contents/Helper.app` silently returned the outer app's plist. The maintainer was shown a 13-input comparison of that rule against the innermost-`.app` rule: every input that resolved correctly before resolves identically after. They chose to drop parity and ship it as 3.1.1, a patch. The call did not cover non-`.app` bundle types.
 
 ## Design model
 From the source:
-- `resolveInfoPlistPath` uses `p.posix` explicitly so it resolves the same way from a Windows test host. For a `.app` path, if a `Contents` segment appears anywhere, it drops the last **two** components and appends `Contents/Info.plist`. Otherwise it treats the path as the bundle root.
+- `resolveInfoPlistPath` uses `p.posix` explicitly so it resolves the same way from a Windows test host. The bundle root is the **innermost** path segment with the `.app` extension, and `Contents/Info.plist` is appended to it. A path with no `.app` segment is treated as the bundle root itself. So the bundle, any path inside it, and a nested helper `.app` each resolve to their own bundle's plist.
+- Why the innermost `.app`: a helper app inside another app (`Outer.app/Contents/Helpers/Helper.app`) has its own `Info.plist`, and the innermost bundle is the one the path names. This follows Apple's `NSBundle` convention, which was read only as a summary and is unconfirmed (2026-10-26).
 - Binary and XML are routed by the `bplist00` magic. XML is UTF-8-decoded before `PlistParser.parseXml`, because the auto-detecting entrypoint mangles multi-byte UTF-8 such as `©` (`MacOSInfoPlistReader._load` comment).
 - Field map: `version` ← `CFBundleShortVersionString`, `productName` ← `CFBundleName`, `fileDescription` ← `CFBundleGetInfoString`, `legalCopyright` ← `NSHumanReadableCopyright`, `originalFilename` ← `CFBundleExecutable`, `companyName` ← `''` (`readMetadata`).
 - A value that is not a string reads as `''` (`_string`).
@@ -33,5 +35,5 @@ From the source:
 - [Release](release.md): the README's "File Path Formats → macOS" documents which paths callers may pass, and this resolver decides whether they work.
 
 ## Known holes / open
-- **The README documents a path that does not resolve.** It lists `/Applications/Example.app/Contents/MacOS/Example` as valid. `resolveInfoPlistPath` turns it into `.../Example.app/Contents/Contents/Info.plist`, which does not exist, so the call returns null or `{}`. The test `parity: a deep path inside a bundle reproduces the Swift quirk` pins that output for parity with the removed Swift plugin. Whether that parity is still wanted is undecided (maintainer, 2026-10-24).
+- **Only `.app` bundles are recognised.** A `.appex`, `.bundle` or `.framework` path has no `.app` segment, so it is treated as a bundle root and gets `Contents/Info.plist` appended. That is wrong for a framework, whose plist is under `Resources/`. A `.appex` inside an app resolves to the enclosing `.app`'s plist (2026-10-26).
 - **The version is not checked as semver.** A `CFBundleShortVersionString` of `1.2.3.4` or `2.0` is returned as-is. ADR-0003 assumes Apple convention makes it semver. The maintainer was not aware of the gap (maintainer, 2026-10-24).
