@@ -15,6 +15,7 @@ A site that starts reshaping its value (truncating, padding, normalising) breaks
 - [Windows OS view](../territory/windows-os-view.md): `version_reader.dart — WindowsVersionReader._queryFixedFileInfo`, `version_info.dart — formatFullVersion`
 - [PE image view](../territory/pe-image-view.md): `pe_version_resource.dart — PeVersionResource.toBinaryFileMetadata`
 - [macOS Info.plist](../territory/macos-info-plist.md): `info_plist_reader.dart — MacOSInfoPlistReader.readVersion, MacOSInfoPlistReader.readMetadata`
+- [Platform dispatch](../territory/platform-dispatch.md): the public doc comments state it to callers (`FlutterBin.getBinaryFileVersion`, `FlutterBin.getBinaryFileMetadata`).
 - [Metadata model](../territory/metadata-model.md): the `version` field carries it.
 - [Release](../territory/release.md): README and CHANGELOG promise it to consumers.
 

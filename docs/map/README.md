@@ -1,7 +1,7 @@
 # Territory map
 
-<!-- grill-map build stamp: 8e5a943 -->
-<!-- grill-map synced at: d06da3b (2026-10-24) -->
+<!-- grill-map build stamp: d525035 -->
+<!-- grill-map synced at: 52891d6 (2026-10-30) -->
 
 The territory map. A comment's why, trap and measured value go to a note here. Notes are added as they come up, or all at once with `grill-map`, which also reads hand-written notes as leads and keeps their paths.
 

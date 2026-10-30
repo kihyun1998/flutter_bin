@@ -38,5 +38,8 @@ From the source and ADR-0004:
 - [Platform dispatch](platform-dispatch.md): the constructor opens DLLs, so it must only be built on Windows.
 
 ## Known holes / open
-- ADR-0001 describes a `windows/test/` CMake/gtest harness that was removed with the C++ plugin in 3.0.0 (`CHANGELOG.md — 3.0.0`). The ADR still reads `Status: accepted`.
-- `_queryString` takes the first translation that has the key. Which language a multi-language binary reports therefore depends on the order of the translation table. This is unverified against Win32 Explorer behaviour.
+- ADR-0001 describes a `windows/test/` CMake/gtest harness that was removed with the C++ plugin in 3.0.0 (`CHANGELOG.md — 3.0.0`). The ADR still reads `Status: accepted`. Tracked: #39.
+- `_queryString` takes the first translation that has the key. Which language a multi-language binary reports therefore depends on the order of the translation table, and the caller is not told which table a value came from; fields can come from different tables. This is unverified against Win32 Explorer behaviour. The image view returns every table (`PeStringTable`). Tracked: #50.
+- **A table the lookup never tries is invisible.** Only `040904B0` and the `\VarFileInfo\Translation` entries are queried, so a table named by neither (Translation lists `0409 04E4`, the only table is `000004B0`) reads as `''` for every field, where the image view reports its values (`_queryString`). How often real binaries hit this is unmeasured. Tracked: #52.
+- **A present but empty string is treated as absent.** `_queryStringSubBlock` returns null when `VerQueryValue` reports length 0, so `_queryString` moves to the next translation and can return another language's value instead of the empty one the first table states. Tracked: #52.
+- **The product version is not exposed.** Only `dwFileVersionMS/LS` are read (`_queryFixedFileInfo`). Neither `dwProductVersion*` nor the `ProductVersion` string reaches the OS view, while the image view has `fixedProductVersion` and every string. Whether `version` should come from the numeric fixed info or the `FileVersion` string is also open. Tracked: #49.

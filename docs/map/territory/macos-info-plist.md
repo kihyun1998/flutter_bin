@@ -11,7 +11,7 @@ Reads version and metadata on macOS by resolving a path to the bundle's `Content
 ## Design model
 From the source:
 - `resolveInfoPlistPath` uses `p.posix` explicitly so it resolves the same way from a Windows test host. The bundle root is the **innermost** path segment with the `.app` extension, and `Contents/Info.plist` is appended to it. A path with no `.app` segment is treated as the bundle root itself. So the bundle, any path inside it, and a nested helper `.app` each resolve to their own bundle's plist.
-- Why the innermost `.app`: a helper app inside another app (`Outer.app/Contents/Helpers/Helper.app`) has its own `Info.plist`, and the innermost bundle is the one the path names. This follows Apple's `NSBundle` convention, which was read only as a summary and is unconfirmed (2026-10-26).
+- Why the innermost `.app`: a helper app inside another app (`Outer.app/Contents/Helpers/Helper.app`) has its own `Info.plist`, and the innermost bundle is the one the path names. This follows Apple's `NSBundle` convention, which was read only as a summary and is unconfirmed (2026-10-26). Tracked: #45.
 - Binary and XML are routed by the `bplist00` magic. XML is UTF-8-decoded before `PlistParser.parseXml`, because the auto-detecting entrypoint mangles multi-byte UTF-8 such as `©` (`MacOSInfoPlistReader._load` comment).
 - Field map: `version` ← `CFBundleShortVersionString`, `productName` ← `CFBundleName`, `fileDescription` ← `CFBundleGetInfoString`, `legalCopyright` ← `NSHumanReadableCopyright`, `originalFilename` ← `CFBundleExecutable`, `companyName` ← `''` (`readMetadata`).
 - A value that is not a string reads as `''` (`_string`).
@@ -36,3 +36,5 @@ From the source:
 
 ## Known holes / open
 - **Only `.app` bundles are recognised.** A `.appex`, `.bundle` or `.framework` path has no `.app` segment, so it is treated as a bundle root and gets `Contents/Info.plist` appended. That is wrong for a framework, whose plist is under `Resources/`. A `.appex` inside an app resolves to the enclosing `.app`'s plist (2026-10-26).
+- **Three entries of the field map above read keys whose meaning differs from the field name.** `CFBundleGetInfoString` is deprecated by Apple and most modern bundles leave it unset; `CFBundleExecutable` names the executable inside the bundle, not the file's original name; `CFBundleName` is not the user-visible name when `CFBundleDisplayName` is present (#51, reading Apple's docs as a summary, 2026-10-26). Tracked: #51.
+- **A non-string value reads as `''`** (`_string`), or `null` from `readVersion`, so it cannot be told from an absent key. Tracked: #48.
