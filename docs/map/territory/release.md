@@ -35,4 +35,4 @@ From the files:
 - [Platform dispatch](platform-dispatch.md) and [PE image view](pe-image-view.md): they own the two exported libraries, so any change to their public symbols is a release decision.
 
 ## Known holes / open
-- Whether `plist_parser` 0.3.0 still needs the UTF-8 pre-decode in `MacOSInfoPlistReader._load` was not checked when #44 raised the floor. The `©` assertions on `full_xml.plist` and `full_binary.plist` (`test/macos/info_plist_reader_test.dart`) would catch the pre-decode breaking, not it becoming unnecessary.
+**None.**
