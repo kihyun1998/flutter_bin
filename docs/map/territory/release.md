@@ -13,6 +13,9 @@ From the files:
 - CI (`.github/workflows/ci.yml`): on Ubuntu, Windows and macOS it runs `dart format --set-exit-if-changed`, `dart analyze` and `dart test`. `@TestOn` annotations route each platform's real-binary tests to its runner. A second job builds the example on Windows and macOS. Flutter is pinned through `FLUTTER_VERSION`.
 - No lockfile is committed. Dependencies are resolved from `pubspec.yaml` alone (#35).
 - Dependabot (`.github/dependabot.yml`): root pub weekly with `increase-if-necessary`, ungrouped; `/example` pub and `github-actions` monthly, each as one group; every PR labelled `needs-triage`. Without a lockfile, `increase-if-necessary` opens a root PR only when a release falls outside the caret, which at `0.x` means every minor. Such a PR raises the floor for consumers, so each one stays a single decision. Nothing ships from `example/`, so its PRs are grouped (#35). The CI Flutter pin (`FLUTTER_VERSION`) is an env value, not an action version, so Dependabot never bumps it.
+- Dependabot's first run, 2026-10-24, matched the configuration: two ungrouped root PRs, each crossing its caret (#43 `lints` `^5.0.0` → `^6.1.0`, #44 `plist_parser` `^0.2.7` → `^0.3.0`), one `actions` group PR (#41 `actions/checkout` 5 → 7), one `example` group PR (#42), each labelled `needs-triage`. The root PRs rewrote the constraint floor, which is what `increase-if-necessary` on `pub` is documented to do.
+- `CHANGELOG.md` can carry an unreleased section ahead of `pubspec.yaml`'s version: `4.0.0 (unreleased)` collects the breaking changes of the 4.0.0 theme while the package stays at 3.1.1, so callers adapt once (commit 14e117a, 2026-10-26). Tracked: #47.
+- The release bar is `pub-ready` (`docs/agents/thegraph.md — Release`).
 
 ## Code
 - `pubspec.yaml`, `.pubignore`, `CHANGELOG.md`, `README.md`, `analysis_options.yaml`
@@ -32,5 +35,4 @@ From the files:
 - [Platform dispatch](platform-dispatch.md) and [PE image view](pe-image-view.md): they own the two exported libraries, so any change to their public symbols is a release decision.
 
 ## Known holes / open
-- Dependabot's first run is unobserved. A configuration error shows only in the repository's Dependabot status after merge to the default branch (#35).
-- Dependabot's support for `versioning-strategy` on `pub` rests on GitHub's options reference ("Supported by: … `pub` …"), read as a summary. It needs confirming against the first real root PR.
+**None.**

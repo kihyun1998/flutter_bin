@@ -30,9 +30,11 @@ discarded. The revision is real data. On 2026-10-26 the OS view reported
 - **Keep truncating Windows.** Rejected: it loses the revision to match a shape
   macOS does not deliver.
 - **Normalise macOS to three parts as well.** Rejected:
-  `CFBundleShortVersionString` is free text. Truncating, padding or stripping a
-  suffix changes what the bundle says (`1.2.3-beta` would lose `-beta`), and the
-  rule for each irregular case would be invented here.
+  Apple specifies `CFBundleShortVersionString` as three period-separated
+  integers, but bundles carry other shapes and the reader cannot repair them
+  faithfully. Truncating, padding or stripping a suffix changes what the bundle
+  says (`1.2.3-beta` would lose `-beta`), and the rule for each irregular case
+  would be invented here.
 - **Keep three parts in `version` and add a four-part field.** Rejected: the
   default field would stay the lossy one.
 - **Return the source's own value (chosen).**

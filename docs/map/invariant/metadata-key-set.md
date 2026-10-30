@@ -16,7 +16,7 @@ After a rename on one side, that field is `''` on one platform and correct on th
 
 ## Discovery history
 - ADR-0002, from the method-channel era (C++/Swift literals).
-- Reading at `d06da3b`: `test/models/binary_file_metadata_test.dart` pins the enum to a literal list, but no test compares either reader's map keys to the enum. The per-platform guards ADR-0002 relied on (`docs/method-channel-contract.md — What guards it`) were removed in 3.0.0.
+- Reading at `d06da3b`: `test/models/binary_file_metadata_test.dart` pins the enum to a literal list, but no test compares either reader's map keys to the enum. The per-platform guards ADR-0002 relied on (`docs/method-channel-contract.md — What guards it`) were removed in 3.0.0. Tracked: #38.
 
 ## Where it will recur
 Any function that returns a `Map<String, String>` destined for `BinaryFileMetadata.fromJson`. Grep with `git grep -n "fromJson(" -- lib/`.

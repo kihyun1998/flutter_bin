@@ -22,6 +22,7 @@ An exception from `getBinaryFileMetadata` for a missing or corrupt file on one p
 
 ## Discovery history
 - Reading at `d06da3b`. Tests cover each site: `info_plist_reader_test.dart` ("missing plist", "corrupt binary plist", "malformed XML plist") and the `pe_version_reader_test.dart` group "returns null instead of throwing". The Windows FFI path is covered only on Windows (`version_reader_test.dart`).
+- #48 questions the `''` half of this fact for 4.0.0: a field absent from the source and a field the source states as empty both read `''`. Tracked: #48.
 
 ## Where it will recur
 Any new reader, and any new I/O or parse step inside an existing one. If a function reads a caller-supplied path, it is subject to this.

@@ -8,7 +8,7 @@ The cross-platform result type `BinaryFileMetadata`, made of six string fields, 
 - [ADR-0004](../../adr/0004-pe-image-view-is-a-separate-api.md): the model is not extended with PE-only fields. Image-view data lives in `PeVersionResource`.
 
 ## Design model
-- Every field defaults to `''`, and `fromJson` maps a missing key to `''` (`BinaryFileMetadata.fromJson`). An absent value and an empty value cannot be told apart. This holds by construction.
+- Every field defaults to `''`, and `fromJson` maps a missing key to `''` (`BinaryFileMetadata.fromJson`). An absent value and an empty value cannot be told apart. This holds by construction, and is this type's half of [Absent reads as empty](../invariant/absent-reads-as-empty.md).
 - `companyName` is always `''` on macOS (`MacOSInfoPlistReader.readMetadata`).
 - `docs/method-channel-contract.md` is marked historical. It is kept only for the key names (its own header says so).
 
@@ -30,4 +30,5 @@ The cross-platform result type `BinaryFileMetadata`, made of six string fields, 
 - [Release](release.md): the type is public API. A field change is a breaking change for the CHANGELOG and the version number.
 
 ## Known holes / open
-- `docs/method-channel-contract.md — What guards it` names `windows/test/flutter_bin_plugin_test.cpp`, which no longer exists, and `RunnerTests.swift`, which is now a placeholder. The guards it describes are gone.
+- `docs/method-channel-contract.md — What guards it` names `windows/test/flutter_bin_plugin_test.cpp`, which no longer exists, and `RunnerTests.swift`, which is now a placeholder. The guards it describes are gone. Tracked: #39.
+- `''` for an absent field, macOS `companyName` always `''`, and `null` from `getBinaryFileVersion` against `''` from `BinaryFileMetadata.version` are questioned for 4.0.0: nullable fields would change this type's public shape. Tracked: #48.
